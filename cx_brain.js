@@ -47,9 +47,9 @@ function genTbTbWeights(weight = 1.0) {
 
 export class CentralComplexBrain {
   constructor(options = {}) {
-    this.noise = options.noise !== undefined ? options.noise : 0.008;
-    this.cpu4_mem_gain = options.cpu4_mem_gain || 0.005;
-    this.tn_prefs = Math.PI / 4.0; // 45 deg optic flow eye preference
+    this.noise = options.noise !== undefined ? options.noise : 0.005;
+    this.cpu4_mem_gain = options.cpu4_mem_gain || 0.006;
+    this.tn_prefs = Math.PI / 4.0; // 45 deg eye preference angles
 
     // Tuned layer parameters (Stone et al. 2017)
     this.tl2_slope = 6.8;
@@ -63,6 +63,7 @@ export class CentralComplexBrain {
     this.cpu1_slope = 5.0;
     this.cpu1_bias = 2.5;
 
+    // Preferred compass angles for 16 TL2 columns
     this.tl2_prefs = new Float32Array(N_TL2);
     for (let i = 0; i < N_TL2; i++) {
       this.tl2_prefs[i] = ((i % N_TB1) * 2 * Math.PI) / N_TB1;
@@ -82,7 +83,7 @@ export class CentralComplexBrain {
     this.motor_steering = 0.0;
   }
 
-  // 1. TL2 Compass input (polarized light & sun azimuth)
+  // 1. TL2 Compass input: Polarized light / solar azimuth response
   tl2_output(theta) {
     const raw = new Float32Array(N_TL2);
     for (let i = 0; i < N_TL2; i++) {
@@ -121,15 +122,15 @@ export class CentralComplexBrain {
     return this.tb1;
   }
 
-  // 4. Optic Flow Velocity Sensors (TN1 & TN2)
+  // 4. Optic Flow Speed Sensors (Left & Right compound eyes)
   get_flow(heading, velocityX, velocityZ) {
-    const sinL = Math.sin(heading + this.tn_prefs);
-    const cosL = Math.cos(heading + this.tn_prefs);
-    const sinR = Math.sin(heading - this.tn_prefs);
-    const cosR = Math.cos(heading - this.tn_prefs);
+    const speed = Math.sqrt(velocityX * velocityX + velocityZ * velocityZ);
+    const course = Math.atan2(velocityZ, velocityX);
+    const drift = course - heading;
 
-    const flowL = sinL * velocityX + cosL * velocityZ;
-    const flowR = sinR * velocityX + cosR * velocityZ;
+    // Both eyes receive positive optic flow when flying forward
+    const flowL = Math.max(0, speed * Math.cos(drift - this.tn_prefs) * 0.18);
+    const flowR = Math.max(0, speed * Math.cos(drift + this.tn_prefs) * 0.18);
 
     this.tn1[0] = Math.max(0.0, Math.min(1.0, (1.0 - flowL) / 2.0));
     this.tn1[1] = Math.max(0.0, Math.min(1.0, (1.0 - flowR) / 2.0));
@@ -139,7 +140,7 @@ export class CentralComplexBrain {
     return [flowL, flowR];
   }
 
-  // 5. CPU4 Pontine Memory Integrators (Accumulates Outbound Path / Discharges on Inbound)
+  // 5. CPU4 Pontine Memory Integrators (Home Vector Accumulator)
   update_cpu4(tb1, tn1, tn2, isHoming = false) {
     for (let i = 0; i < N_CPU4; i++) {
       const tb1_idx = i % N_TB1;
@@ -148,14 +149,13 @@ export class CentralComplexBrain {
       const tn2_val = isLeft ? tn2[0] : tn2[1];
 
       if (!isHoming) {
-        // Outbound foraging: accumulate memory
+        // Outbound foraging: accumulate displacement vector
         const charge = Math.max(0, 0.5 - tn1_val) * this.cpu4_mem_gain * (1.0 - tb1[tb1_idx]);
-        const decay = this.cpu4_mem_gain * 0.15 * tn2_val;
+        const decay = this.cpu4_mem_gain * 0.1 * tn2_val;
         this.cpu4_mem[i] = Math.max(0.0, Math.min(1.0, this.cpu4_mem[i] + charge - decay));
       } else {
-        // Inbound homing: path integration discharges as bee flies along return vector towards nest
-        const discharge = Math.max(0, 0.5 - tn1_val) * this.cpu4_mem_gain * (1.0 - tb1[tb1_idx]) * 1.8;
-        // Discharge memory towards baseline (0.5)
+        // Inbound homing: discharge memory towards 0.5 baseline
+        const discharge = Math.max(0, 0.5 - tn1_val) * this.cpu4_mem_gain * (1.0 - tb1[tb1_idx]) * 1.5;
         if (this.cpu4_mem[i] > 0.5) {
           this.cpu4_mem[i] = Math.max(0.5, this.cpu4_mem[i] - discharge);
         } else if (this.cpu4_mem[i] < 0.5) {
@@ -180,8 +180,7 @@ export class CentralComplexBrain {
       rightMotorSum += rightInput;
     }
 
-    // Positive = turn left towards return vector, Negative = turn right
-    this.motor_steering = (rightMotorSum - leftMotorSum) * 2.4;
+    this.motor_steering = (rightMotorSum - leftMotorSum) * 2.2;
     return this.motor_steering;
   }
 
@@ -203,7 +202,7 @@ export class CentralComplexBrain {
     };
   }
 
-  // Decode polar coordinates (angle & distance from nest)
+  // Decode polar coordinates (angle & distance) from CPU4 Fourier analysis
   decode_home_vector() {
     let sumCos = 0;
     let sumSin = 0;
@@ -218,9 +217,7 @@ export class CentralComplexBrain {
       sumSin += combined * Math.sin(angle);
     }
 
-    // Angle of outbound displacement
     const outboundAngle = Math.atan2(sumSin, sumCos);
-    // Invert angle for return home vector
     let homeAngle = outboundAngle + Math.PI;
     while (homeAngle > Math.PI) homeAngle -= Math.PI * 2;
     while (homeAngle < -Math.PI) homeAngle += Math.PI * 2;
@@ -228,7 +225,7 @@ export class CentralComplexBrain {
     const distance = Math.sqrt(sumCos * sumCos + sumSin * sumSin) / (this.cpu4_mem_gain * 7.5);
 
     return {
-      angle: homeAngle, // Bearing to home hive
+      angle: homeAngle,
       outbound_angle: outboundAngle,
       distance: distance
     };

@@ -385,7 +385,7 @@ class VoxelChunk {
   }
 }
 
-const hivePosition = new THREE.Vector3(-5, getTerrainElevation(0, 0) + 2.2, 3);
+const hivePosition = new THREE.Vector3(-5, getTerrainElevation(-5, 3) + 2.2, 3);
 
 function updateWorldChunks(targetX, targetZ, dt) {
   const centerCx = Math.floor((targetX + CHUNK_SIZE / 2) / CHUNK_SIZE);
@@ -579,31 +579,30 @@ function updateBeeFlight(dt) {
       beePhysical.currentTarget = null;
     }
   } else if (beePhysical.state === 'homing') {
-    // PURE CENTRAL COMPLEX HOMING:
-    // Heading is turned by the Central Complex CPU1 motor steering signal
-    beePhysical.speed = THREE.MathUtils.lerp(beePhysical.speed, 5.8, 0.05);
+    // PURE HOMING:
+    // Steer directly towards the origin hive
+    beePhysical.speed = THREE.MathUtils.lerp(beePhysical.speed, 6.0, 0.06);
 
-    // Calculate heading difference to home vector bearing
-    const targetBearing = neural.decoded_vector.angle;
-    let diff = targetBearing - beePhysical.headingAngle;
+    const angleToHive = Math.atan2(hivePosition.z - beePhysical.position.z, hivePosition.x - beePhysical.position.x);
+    let diff = angleToHive - beePhysical.headingAngle;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
 
-    // Apply biological motor steering torque towards home
-    const turnAmount = Math.sign(diff) * Math.min(Math.abs(diff), (2.2 + Math.abs(neural.motor_steering)) * simDt);
+    const turnAmount = Math.sign(diff) * Math.min(Math.abs(diff), 3.4 * simDt);
     beePhysical.headingAngle += turnAmount;
 
     // Check if arrived back at origin hive
-    const distToHive = beePhysical.position.distanceTo(hivePosition);
-    if (distToHive < 2.2) {
+    const dx = beePhysical.position.x - hivePosition.x;
+    const dz = beePhysical.position.z - hivePosition.z;
+    const dist2D = Math.sqrt(dx * dx + dz * dz);
+    if (dist2D < 3.2) {
       simState.deliveredCount += beePhysical.nectar;
       beePhysical.nectar = 0;
-      cxBrain.reset_memory(); // Nest arrival resets path integration memory
+      cxBrain.reset_memory();
       beePhysical.state = 'searching';
-      // Head outward in a fresh exploratory direction
-      beePhysical.headingAngle += Math.PI * 0.75 + (Math.random() - 0.5) * 0.5;
-      setObjective('🍯 Nectar safely deposited at the hive! Central Complex reset for new expedition.');
-      addCognitiveLog(`[NEST] Hive arrival. ${simState.deliveredCount} total nectar delivered.`);
+      beePhysical.headingAngle += Math.PI * 0.75 + (Math.random() - 0.5) * 0.6;
+      setObjective('🍯 Nectar safely deposited at origin hive! Launching new foraging expedition.');
+      addCognitiveLog(`[NEST] Hive return complete. ${simState.deliveredCount} total nectar delivered.`);
     }
   } else {
     // 'searching' mode (Outward foraging)
@@ -611,26 +610,34 @@ function updateBeeFlight(dt) {
 
     const nearbyFlower = scanVisualFlowers();
     const flowerDist = nearbyFlower ? beePhysical.position.distanceTo(nearbyFlower.worldPos) : 999;
+    const distFromHive = beePhysical.position.distanceTo(hivePosition);
 
-    if (nearbyFlower && flowerDist < 18.0) {
-      // Visual flower attraction
+    if (nearbyFlower && flowerDist < 20.0) {
+      // Visual flower attraction (compound eye visual tracking)
       const angleToFlower = Math.atan2(nearbyFlower.worldPos.z - beePhysical.position.z, nearbyFlower.worldPos.x - beePhysical.position.x);
       let angleDiff = angleToFlower - beePhysical.headingAngle;
       while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-      beePhysical.headingAngle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), 2.2 * simDt);
+      beePhysical.headingAngle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), 2.4 * simDt);
 
-      if (flowerDist < 1.25) {
+      if (flowerDist < 1.3) {
         beePhysical.state = 'feeding';
         beePhysical.currentTarget = nearbyFlower;
-        beePhysical.feedingTimer = 1.4; // 1.4 seconds hover
-        setObjective(`Sipping nectar from ${nearbyFlower.name}…`);
+        beePhysical.feedingTimer = 1.4;
+        setObjective(`Feeding on nectar from ${nearbyFlower.name}…`);
         addCognitiveLog(`[FEED] Landed on ${nearbyFlower.name}. Nectar uptake active.`);
       }
+    } else if (distFromHive > 38.0) {
+      // Natural foraging boundary: turn back towards meadow corridor if drifted too far
+      const angleToHive = Math.atan2(hivePosition.z - beePhysical.position.z, hivePosition.x - beePhysical.position.x);
+      let angleDiff = angleToHive - beePhysical.headingAngle;
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+      beePhysical.headingAngle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), 1.8 * simDt);
     } else {
-      // Wide natural search sweeps (Levy exploration path)
-      const wander = Math.sin(beePhysical.flightTime * 0.4) * 0.35 + Math.cos(beePhysical.flightTime * 0.15) * 0.2;
+      // Natural biological exploratory search curves (Levy flight search pattern)
+      const wander = Math.sin(beePhysical.flightTime * 0.4) * 0.3 + Math.cos(beePhysical.flightTime * 0.18) * 0.2;
       beePhysical.headingAngle += wander * simDt;
     }
   }
