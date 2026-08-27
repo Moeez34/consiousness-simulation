@@ -2,8 +2,8 @@
 
 :root {
   color-scheme: dark;
-  --glass-bg: rgba(10, 18, 16, 0.72);
-  --glass-bg-hover: rgba(22, 36, 32, 0.85);
+  --glass-bg: rgba(10, 18, 16, 0.76);
+  --glass-bg-hover: rgba(22, 36, 32, 0.88);
   --glass-border: rgba(230, 245, 225, 0.16);
   --glass-border-focus: rgba(247, 201, 86, 0.6);
   --ink: #f8faf5;
@@ -14,11 +14,12 @@
   --green-glow: rgba(103, 232, 137, 0.35);
   --blue: #58b9ff;
   --purple: #c084fc;
+  --cyan: #4ade80;
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 20px;
   --radius-full: 9999px;
-  --shadow-hud: 0 16px 32px -8px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-hud: 0 16px 32px -8px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.45);
 }
 
 * {
@@ -44,14 +45,10 @@ html, body, #gameShell {
   width: 100%;
   height: 100%;
   outline: none;
-  cursor: grab;
+  cursor: default;
 }
 
-#world:active {
-  cursor: grabbing;
-}
-
-/* Compound eye POV overlay (active in POV mode) */
+/* Compound eye POV overlay */
 #povOverlay {
   position: absolute;
   inset: 0;
@@ -89,7 +86,7 @@ html, body, #gameShell {
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Top Left Branding & Environment Info */
+/* Top Left Branding */
 .top-left-hud {
   top: 20px;
   left: 20px;
@@ -117,7 +114,7 @@ html, body, #gameShell {
 }
 
 .top-left-hud h1 {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.1;
@@ -142,19 +139,16 @@ html, body, #gameShell {
   gap: 5px;
 }
 
-.environment-tag i {
+.indicator-active {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   display: inline-block;
-}
-
-.indicator-active {
   background: var(--green);
   box-shadow: 0 0 10px var(--green-glow);
 }
 
-/* Top Right: Camera Selector & Tools */
+/* Top Right: Camera Selector */
 .top-right-hud {
   top: 20px;
   right: 20px;
@@ -200,25 +194,205 @@ html, body, #gameShell {
   box-shadow: 0 2px 8px var(--yellow-glow);
 }
 
-/* Right Side: Bee Telemetry & Brain Monitor */
+/* ===================================================
+   LEFT SIDE: CENTRAL COMPLEX NEURAL BRAIN MONITOR
+=================================================== */
+.neural-hud {
+  top: 96px;
+  left: 20px;
+  width: 290px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.neural-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--cyan);
+  background: rgba(74, 222, 128, 0.15);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+}
+
+.neural-section {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+}
+
+.neural-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--yellow);
+  margin-bottom: 8px;
+}
+
+.sub-val {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+/* TB1 Compass Ring Attractor */
+.tb1-ring-container {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin: 4px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tb1-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.ring-node {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transform: translate(-50%, -50%);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ring-needle {
+  position: absolute;
+  width: 2px;
+  height: 36px;
+  background: var(--yellow);
+  top: 4px;
+  transform-origin: bottom center;
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--yellow-glow);
+  transition: transform 0.1s linear;
+}
+
+/* CPU4 Memory Bars Grid */
+.cpu4-bars-grid {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 3px;
+  height: 48px;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cpu4-bar-track {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 2px;
+}
+
+.cpu4-bar-fill {
+  width: 100%;
+  background: linear-gradient(0deg, #38bdf8, #818cf8);
+  border-radius: 2px;
+  transition: height 0.15s ease;
+}
+
+/* CPU1 Torque Gauge */
+.torque-gauge {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 6px 0 3px;
+}
+
+.gauge-marker-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  transform: translateX(-50%);
+}
+
+.gauge-needle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  left: 50%;
+  background: var(--yellow);
+  transform-origin: left center;
+  transition: transform 0.1s ease;
+}
+
+.gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--ink-muted);
+}
+
+.neural-telemetry-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+.t-label {
+  color: var(--ink-muted);
+}
+
+.t-val {
+  color: var(--yellow);
+  font-weight: 600;
+}
+
+/* ===================================================
+   RIGHT SIDE: BEHAVIOR & COGNITIVE TELEMETRY
+=================================================== */
 .brain-hud {
-  top: 90px;
+  top: 96px;
   right: 20px;
-  width: 250px;
-  padding: 18px;
+  width: 270px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
 }
 
 .panel-title {
   font-family: 'DM Mono', monospace;
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.12em;
   color: var(--yellow);
   text-transform: uppercase;
@@ -230,9 +404,8 @@ html, body, #gameShell {
   font-weight: 600;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.08);
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: var(--radius-full);
-  display: inline-block;
   letter-spacing: 0.06em;
 }
 
@@ -257,7 +430,7 @@ html, body, #gameShell {
 .telemetry-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .telemetry-row {
@@ -265,9 +438,9 @@ html, body, #gameShell {
   justify-content: space-between;
   align-items: center;
   font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 11px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .telemetry-row:last-child {
@@ -283,19 +456,18 @@ html, body, #gameShell {
   font-weight: 500;
 }
 
-/* Nectar Bar Indicator */
+/* Nectar Meter */
 .nectar-meter-wrap {
-  margin-top: 10px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .meter-label {
   display: flex;
   justify-content: space-between;
   font-family: 'DM Mono', monospace;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-muted);
 }
 
@@ -317,6 +489,44 @@ html, body, #gameShell {
   box-shadow: 0 0 10px var(--yellow-glow);
 }
 
+/* Cognitive Stream */
+.cognitive-stream-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cognitive-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cognitive-log {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #c7eed2;
+  height: 68px;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.log-entry {
+  opacity: 0.9;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+
 /* Center Bottom Objective Toast */
 .objective-toast {
   position: absolute;
@@ -334,7 +544,7 @@ html, body, #gameShell {
   align-items: center;
   gap: 10px;
   border: 1px solid rgba(247, 201, 86, 0.3);
-  background: rgba(12, 22, 19, 0.85);
+  background: rgba(12, 22, 19, 0.88);
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
 
@@ -383,18 +593,10 @@ button.btn-glass:hover {
   transform: translateY(-1px);
 }
 
-button.btn-glass:active {
-  transform: translateY(0);
-}
-
 button.btn-glass.btn-highlight {
   background: rgba(247, 201, 86, 0.15);
   border-color: rgba(247, 201, 86, 0.4);
   color: var(--yellow);
-}
-
-button.btn-glass.btn-highlight:hover {
-  background: rgba(247, 201, 86, 0.28);
 }
 
 .speed-control {
@@ -435,54 +637,28 @@ button.btn-glass.btn-highlight:hover {
   font-weight: 600;
 }
 
-/* Click-to-plant prompt hint */
 .click-hint {
   font-family: 'DM Mono', monospace;
   font-size: 11px;
   color: var(--ink-muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
-.click-hint kbd {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid var(--glass-border);
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: var(--yellow);
+/* Responsive */
+@media (max-width: 1100px) {
+  .neural-hud {
+    display: none;
+  }
 }
 
-/* Responsive Breakpoints */
-@media (max-width: 920px) {
+@media (max-width: 768px) {
   .brain-hud {
     display: none;
   }
-  .objective-toast {
-    bottom: 90px;
-  }
-}
-
-@media (max-width: 680px) {
-  .top-left-hud {
-    top: 12px;
-    left: 12px;
-    padding: 12px 14px;
-  }
   .top-left-hud h1 {
-    font-size: 18px;
-  }
-  .top-right-hud {
-    top: 12px;
-    right: 12px;
-    padding: 6px 8px;
+    font-size: 16px;
   }
   .bottom-toolbar {
-    bottom: 12px;
-    left: 12px;
-    right: 12px;
-    padding: 10px 14px;
-    gap: 10px;
+    padding: 8px 12px;
   }
   .click-hint, .stats-counter {
     display: none;

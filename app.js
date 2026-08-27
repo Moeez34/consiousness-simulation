@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CentralComplexBrain } from './cx_brain.js';
 
 // ==========================================
-// 1. ENGINE & THREE.JS SETUP
+// 1. ENGINE & SCENE SETUP
 // ==========================================
 const canvas = document.querySelector('#world');
 const povOverlay = document.querySelector('#povOverlay');
@@ -18,7 +19,7 @@ renderer.toneMappingExposure = 1.2;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 400);
 
-// Orbit Controls for free-cam / god mode
+// Orbit Controls (Observer god view)
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
@@ -27,12 +28,12 @@ controls.minDistance = 3;
 controls.maxPolarAngle = Math.PI / 2 - 0.02;
 controls.enabled = false;
 
-// Raycaster for interactive flower planting
+// Raycaster
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 // ==========================================
-// 2. LIGHTING & DYNAMIC ATMOSPHERE
+// 2. LIGHTING & ENVIRONMENT
 // ==========================================
 const skyPresets = {
   noon: { sky: '#82cbf0', fog: '#ace0fa', sun: '#fff5d1', hemiSky: '#d8f4ff', hemiGround: '#355928', sunPos: [-45, 60, -35], exposure: 1.2 },
@@ -61,7 +62,7 @@ sunLight.shadow.bias = -0.0004;
 scene.add(sunLight);
 
 // ==========================================
-// 3. SHARED VOXEL MATERIALS & GEOMETRIES
+// 3. SHARED MATERIALS
 // ==========================================
 const mat = (color, roughness = 0.8) => new THREE.MeshLambertMaterial({ color, flatShading: true });
 const materials = {
@@ -86,63 +87,42 @@ const materials = {
   flowerYellow: mat('#ffc300'),
   flowerPurple: mat('#9d4edd'),
   flowerBlue: mat('#3a86ff'),
-  flowerPink: mat('#ff70a6'),
   stem: mat('#3d8534'),
   hiveBox: mat('#e29f32'),
-  hiveStrip: mat('#8a581a'),
   hazard: mat('#b23838'),
   cloud: new THREE.MeshLambertMaterial({ color: '#f5fafc', transparent: true, opacity: 0.88, flatShading: true }),
-  water: new THREE.MeshPhongMaterial({
-    color: '#288acf',
-    transparent: true,
-    opacity: 0.82,
-    shininess: 95,
-    flatShading: true
-  })
+  water: new THREE.MeshPhongMaterial({ color: '#288acf', transparent: true, opacity: 0.82, shininess: 95, flatShading: true })
 };
 
-// Reusable block geometries
 const blockGeo = new THREE.BoxGeometry(2, 1, 2);
 const blockGeoTall = new THREE.BoxGeometry(2, 2.4, 2);
 
 // ==========================================
-// 4. CONTINUOUS PROCEDURAL NOISE & BIOMES
+// 4. PROCEDURAL PROCEDURAL NOISE & TERRAIN
 // ==========================================
-// Deterministic Hash / Pseudo-random generator for chunks
 function hash2D(x, z) {
   const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
   return n - Math.floor(n);
 }
 
-// Continuous Winding River Channel Formula
 function getRiverOffset(z) {
   return Math.sin(z * 0.035) * 16 + Math.sin(z * 0.09) * 7;
 }
 
-// Infinite Continuous Heightmap Formula
 function getTerrainElevation(x, z) {
   const riverX = getRiverOffset(z);
   const riverDist = Math.abs(x - riverX);
+  if (riverDist < 5.6) return -1.45;
 
-  if (riverDist < 5.6) {
-    return -1.45; // Water channel bed
-  }
-
-  // Multi-frequency rolling hills
   const h1 = Math.sin(x * 0.045) * Math.cos(z * 0.04) * 2.8;
   const h2 = Math.sin((x * 0.08 + z * 0.06)) * 1.8;
   const h3 = Math.cos((x * 0.02 - z * 0.03)) * 2.2;
-
-  // Mountain ridge factor in certain sectors
   const ridgeNoise = Math.sin(x * 0.015 + 1.2) * Math.cos(z * 0.018);
   const ridge = ridgeNoise > 0.4 ? (ridgeNoise - 0.4) * 10 : 0;
 
-  // Quantized step-like voxel heights
-  const rawH = h1 + h2 + h3 + ridge;
-  return Math.round(rawH * 0.5) * 0.8 - 0.1;
+  return Math.round((h1 + h2 + h3 + ridge) * 0.5) * 0.8 - 0.1;
 }
 
-// Biome Classifier
 function getBiomeAt(x, z) {
   const riverDist = Math.abs(x - getRiverOffset(z));
   if (riverDist < 7.8) return 'Riverside Bank';
@@ -153,16 +133,15 @@ function getBiomeAt(x, z) {
 }
 
 // ==========================================
-// 5. CHUNK-BASED PROCEDURAL WORLD STREAMER
+// 5. CHUNK SYSTEM
 // ==========================================
-const CHUNK_SIZE = 16;       // 16 world units per chunk (8x8 blocks of size 2)
-const RENDER_RADIUS = 3;    // 7x7 grid = 49 active chunks
+const CHUNK_SIZE = 16;
+const RENDER_RADIUS = 3;
 const loadedChunks = new Map();
 const activeFlowers = [];
 const activeHazards = [];
 const worldRoot = new THREE.Group();
 scene.add(worldRoot);
-
 const groundRaycastMeshes = [];
 
 class VoxelChunk {
@@ -173,9 +152,9 @@ class VoxelChunk {
     this.worldX = cx * CHUNK_SIZE;
     this.worldZ = cz * CHUNK_SIZE;
     this.group = new THREE.Group();
-    this.group.position.set(this.worldX, -16, this.worldZ); // starts deep underground for building animation
+    this.group.position.set(this.worldX, -16, this.worldZ);
     this.targetY = 0;
-    this.spawnProgress = 0; // 0 to 1 for step-by-step building animation
+    this.spawnProgress = 0;
     this.isBuilt = false;
     this.flowers = [];
     this.hazards = [];
@@ -188,7 +167,6 @@ class VoxelChunk {
     const half = CHUNK_SIZE / 2;
     const step = 2;
     const isOrigin = this.cx === 0 && this.cz === 0;
-
     let hasWater = false;
 
     for (let lx = -half + 1; lx <= half - 1; lx += step) {
@@ -210,14 +188,12 @@ class VoxelChunk {
           else if ((Math.abs(Math.floor(wx / 2)) + Math.abs(Math.floor(wz / 2))) % 3 === 0) blockMat = materials.grassAlt;
         }
 
-        // Top voxel block
         const block = new THREE.Mesh(blockGeo, blockMat);
         block.position.set(lx, elev - 0.5, lz);
         block.receiveShadow = true;
         this.group.add(block);
         groundRaycastMeshes.push(block);
 
-        // Sub-surface strata if elevated
         if (elev > 0.7) {
           const subBlock = new THREE.Mesh(blockGeoTall, materials.dirt);
           subBlock.position.set(lx, elev - 1.8, lz);
@@ -227,7 +203,6 @@ class VoxelChunk {
       }
     }
 
-    // River Water plane for chunk if river passes through
     if (hasWater) {
       const water = new THREE.Mesh(new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE), materials.water);
       water.rotation.x = -Math.PI / 2;
@@ -235,7 +210,6 @@ class VoxelChunk {
       this.group.add(water);
     }
 
-    // Procedural Flora & Features
     if (isOrigin) {
       this.buildHomesteadAndHive();
     } else {
@@ -247,38 +221,26 @@ class VoxelChunk {
     const seed = hash2D(this.cx, this.cz);
     const biome = getBiomeAt(this.worldX, this.worldZ);
 
-    // Tree generation
-    const treeCount = biome === 'Dense Forest' ? 2 + Math.floor(seed * 3) : biome === 'Lush Meadow' ? (seed > 0.6 ? 1 : 0) : (seed > 0.8 ? 1 : 0);
+    const treeCount = biome === 'Dense Forest' ? 2 + Math.floor(seed * 3) : biome === 'Lush Meadow' ? (seed > 0.65 ? 1 : 0) : (seed > 0.8 ? 1 : 0);
     for (let t = 0; t < treeCount; t++) {
       const tx = (hash2D(this.cx * 3 + t, this.cz * 7) - 0.5) * (CHUNK_SIZE - 6);
       const tz = (hash2D(this.cx * 5 + t, this.cz * 11) - 0.5) * (CHUNK_SIZE - 6);
       const wx = this.worldX + tx;
       const wz = this.worldZ + tz;
-
       if (Math.abs(wx - getRiverOffset(wz)) > 6.5) {
-        const type = hash2D(wx, wz) > 0.5 ? 'birch' : 'oak';
-        this.addTree(tx, tz, type, 0.9 + hash2D(tz, wx) * 0.35);
+        this.addTree(tx, tz, hash2D(wx, wz) > 0.5 ? 'birch' : 'oak', 0.9 + hash2D(tz, wx) * 0.35);
       }
     }
 
-    // Flower generation
     const flowerCount = biome === 'Lush Meadow' ? 2 + Math.floor(seed * 4) : 1 + Math.floor(seed * 2);
     for (let f = 0; f < flowerCount; f++) {
       const fx = (hash2D(this.cx * 9 + f, this.cz * 13) - 0.5) * (CHUNK_SIZE - 4);
       const fz = (hash2D(this.cx * 15 + f, this.cz * 17) - 0.5) * (CHUNK_SIZE - 4);
       const wx = this.worldX + fx;
       const wz = this.worldZ + fz;
-
       if (Math.abs(wx - getRiverOffset(wz)) > 6.0) {
         this.addFlower(fx, fz);
       }
-    }
-
-    // Occasional Hazard Spike (Thorny briar)
-    if (seed > 0.82) {
-      const hx = (hash2D(this.cx * 21, this.cz * 23) - 0.5) * (CHUNK_SIZE - 6);
-      const hz = (hash2D(this.cx * 27, this.cz * 29) - 0.5) * (CHUNK_SIZE - 6);
-      this.addHazard(hx, hz);
     }
   }
 
@@ -289,14 +251,12 @@ class VoxelChunk {
     const trunkHeight = (type === 'birch' ? 5.5 : 4.2) * scale;
     const trunkMat = type === 'birch' ? materials.woodBirch : materials.woodOak;
 
-    // Trunk
     const trunk = new THREE.Mesh(new THREE.BoxGeometry(1.2 * scale, trunkHeight, 1.2 * scale), trunkMat);
     trunk.position.set(lx, groundY + trunkHeight / 2, lz);
     trunk.castShadow = true;
     trunk.receiveShadow = true;
     this.group.add(trunk);
 
-    // Canopy
     const leafMat = type === 'birch' ? materials.leafBirch : materials.leafOak1;
     const crownBase = groundY + trunkHeight - 0.8;
     for (let ix = -2; ix <= 2; ix++) {
@@ -314,7 +274,7 @@ class VoxelChunk {
     }
   }
 
-  addFlower(lx, lz, species = null) {
+  addFlower(lx, lz) {
     const wx = this.worldX + lx;
     const wz = this.worldZ + lz;
     const groundY = getTerrainElevation(wx, wz);
@@ -323,29 +283,20 @@ class VoxelChunk {
       { name: 'Poppy', mat: materials.flowerRed, size: 0.85 },
       { name: 'Dandelion', mat: materials.flowerYellow, size: 0.8 },
       { name: 'Lavender', mat: materials.flowerPurple, size: 0.9 },
-      { name: 'Bluebell', mat: materials.flowerBlue, size: 0.85 },
-      { name: 'Sunflower', mat: materials.flowerYellow, size: 1.05 }
+      { name: 'Bluebell', mat: materials.flowerBlue, size: 0.85 }
     ];
 
-    const spec = species || speciesList[Math.floor(hash2D(wx * 2.3, wz * 4.1) * speciesList.length)];
+    const spec = speciesList[Math.floor(hash2D(wx * 2.3, wz * 4.1) * speciesList.length)];
     const flowerGroup = new THREE.Group();
 
-    // Stem
     const stem = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2 * spec.size, 0.12), materials.stem);
     stem.position.y = (1.2 * spec.size) / 2;
     flowerGroup.add(stem);
 
-    // Petals
     const petals = new THREE.Mesh(new THREE.BoxGeometry(0.65 * spec.size, 0.28 * spec.size, 0.65 * spec.size), spec.mat);
     petals.position.y = 1.15 * spec.size;
     flowerGroup.add(petals);
 
-    // Nectar Core
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.28 * spec.size, 0.35 * spec.size, 0.28 * spec.size), materials.flowerYellow);
-    core.position.y = 1.2 * spec.size;
-    flowerGroup.add(core);
-
-    // Glowing Beacon
     const beacon = new THREE.Mesh(
       new THREE.SphereGeometry(0.16, 6, 6),
       new THREE.MeshBasicMaterial({ color: '#ffea75', transparent: true, opacity: 0.9 })
@@ -369,28 +320,13 @@ class VoxelChunk {
     activeFlowers.push(flowerObj);
   }
 
-  addHazard(lx, lz) {
-    const wx = this.worldX + lx;
-    const wz = this.worldZ + lz;
-    const groundY = getTerrainElevation(wx, wz);
-    const spike = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.8), materials.hazard);
-    spike.position.set(lx, groundY + 0.6, lz);
-    spike.rotation.y = 0.6;
-    this.group.add(spike);
-
-    const hazPos = new THREE.Vector3(wx, groundY + 0.6, wz);
-    this.hazards.push(hazPos);
-    activeHazards.push(hazPos);
-  }
-
   buildHomesteadAndHive() {
     const groundY = getTerrainElevation(0, 0);
 
-    // Beekeeper Cottage
+    // Cottage
     for (let ix = -2; ix <= 2; ix++) {
       for (let iz = -2; iz <= 2; iz++) {
-        const isWall = Math.abs(ix) === 2 || Math.abs(iz) === 2;
-        if (isWall) {
+        if (Math.abs(ix) === 2 || Math.abs(iz) === 2) {
           const w = new THREE.Mesh(new THREE.BoxGeometry(1.4, 3.2, 1.4), materials.woodPlank);
           w.position.set(ix * 1.4, groundY + 1.6, iz * 1.4 - 4);
           w.castShadow = true;
@@ -399,27 +335,7 @@ class VoxelChunk {
       }
     }
 
-    // Cottage Roof
-    for (let level = 0; level < 3; level++) {
-      for (let i = -3 + level; i <= 3 - level; i++) {
-        const r1 = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.9, 1.3), materials.roof);
-        r1.position.set(i * 1.4, groundY + 3.4 + level * 0.9, -6.8 + level * 0.6);
-        this.group.add(r1);
-
-        const r2 = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.9, 1.3), materials.roof);
-        r2.position.set(i * 1.4, groundY + 3.4 + level * 0.9, -1.2 - level * 0.6);
-        this.group.add(r2);
-      }
-    }
-
-    // Stone Chimney
-    for (let cy = 0; cy < 5; cy++) {
-      const chim = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), cy % 2 ? materials.chimney : materials.stoneDark);
-      chim.position.set(2.8, groundY + 0.8 + cy * 0.9, -3.5);
-      this.group.add(chim);
-    }
-
-    // Master Hive on Stilts
+    // Master Hive Box on Stilts
     [-0.7, 0.7].forEach(hx => {
       [-0.6, 0.6].forEach(hz => {
         const stilt = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.2), materials.woodDark);
@@ -439,60 +355,43 @@ class VoxelChunk {
     board.position.set(-5, groundY + 0.85, 4.05);
     this.group.add(board);
 
-    // Initial Meadow Flowers around Home
+    // Initial Flowers around Hive
     [[-3, 6], [-7, 2], [-2, 1], [-8, 7]].forEach(([fx, fz]) => this.addFlower(fx, fz));
   }
 
   updateAnimation(dt) {
     if (this.isBuilt) return;
-
-    this.spawnProgress += dt * 2.8; // ~0.35s build up
+    this.spawnProgress += dt * 3.0;
     if (this.spawnProgress >= 1.0) {
       this.spawnProgress = 1.0;
       this.group.position.y = this.targetY;
       this.isBuilt = true;
     } else {
-      // Minecraft rising from below with smooth ease-out spring
-      const t = this.spawnProgress;
-      const ease = 1 - Math.pow(1 - t, 3);
+      const ease = 1 - Math.pow(1 - this.spawnProgress, 3);
       this.group.position.y = -16 * (1 - ease);
     }
   }
 
   dispose() {
-    // Remove flowers from active pool
     this.flowers.forEach(f => {
       const idx = activeFlowers.indexOf(f);
       if (idx !== -1) activeFlowers.splice(idx, 1);
     });
-
-    // Remove hazards
-    this.hazards.forEach(h => {
-      const idx = activeHazards.indexOf(h);
-      if (idx !== -1) activeHazards.splice(idx, 1);
-    });
-
-    // Remove raycast ground meshes
     this.group.traverse(obj => {
       const rIdx = groundRaycastMeshes.indexOf(obj);
       if (rIdx !== -1) groundRaycastMeshes.splice(rIdx, 1);
     });
-
     worldRoot.remove(this.group);
   }
 }
 
-// Master Hive Origin Position
 const hivePosition = new THREE.Vector3(-5, getTerrainElevation(0, 0) + 2.2, 3);
 
-// Dynamic Chunk Streamer
 function updateWorldChunks(targetX, targetZ, dt) {
   const centerCx = Math.floor((targetX + CHUNK_SIZE / 2) / CHUNK_SIZE);
   const centerCz = Math.floor((targetZ + CHUNK_SIZE / 2) / CHUNK_SIZE);
-
   const neededKeys = new Set();
 
-  // Load / Spawn chunks within render distance
   for (let dx = -RENDER_RADIUS; dx <= RENDER_RADIUS; dx++) {
     for (let dz = -RENDER_RADIUS; dz <= RENDER_RADIUS; dz++) {
       const cx = centerCx + dx;
@@ -501,18 +400,14 @@ function updateWorldChunks(targetX, targetZ, dt) {
       neededKeys.add(key);
 
       if (!loadedChunks.has(key)) {
-        const chunk = new VoxelChunk(cx, cz);
-        loadedChunks.set(key, chunk);
+        loadedChunks.set(key, new VoxelChunk(cx, cz));
       }
     }
   }
 
-  // Update chunk animations & cull distant chunks
   for (const [key, chunk] of loadedChunks.entries()) {
     chunk.updateAnimation(dt);
-
     if (!neededKeys.has(key)) {
-      // Chunk is beyond render horizon -> recycle
       chunk.dispose();
       loadedChunks.delete(key);
     }
@@ -520,64 +415,48 @@ function updateWorldChunks(targetX, targetZ, dt) {
 }
 
 // ==========================================
-// 6. DETAILED 3D VOXEL BEE AGENT
+// 6. DETAILED 3D VOXEL BEE
 // ==========================================
 function buildBee() {
   const bee = new THREE.Group();
-
   const beeYellow = mat('#ffc72c');
   const beeBlack = mat('#29190d');
   const beeDark = mat('#140b05');
   const eyeMat = new THREE.MeshPhongMaterial({ color: '#0c1a24', shininess: 80 });
-  const wingMat = new THREE.MeshPhongMaterial({
-    color: '#e4f7ff',
-    transparent: true,
-    opacity: 0.72,
-    side: THREE.DoubleSide,
-    shininess: 90
-  });
+  const wingMat = new THREE.MeshPhongMaterial({ color: '#e4f7ff', transparent: true, opacity: 0.72, side: THREE.DoubleSide, shininess: 90 });
   const pollenMat = new THREE.MeshLambertMaterial({ color: '#ffb703' });
 
-  // Thorax
   const thorax = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.05, 1.1), beeYellow);
   thorax.position.set(0.2, 0, 0);
   bee.add(thorax);
 
-  // Abdomen
   const abdomen = new THREE.Group();
   abdomen.position.set(1.4, 0, 0);
 
   const ab1 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.0, 1.02), beeBlack);
   abdomen.add(ab1);
-
   const ab2 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.95, 0.98), beeYellow);
   ab2.position.x = 0.4;
   abdomen.add(ab2);
-
   const ab3 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.88, 0.9), beeBlack);
   ab3.position.x = 0.8;
   abdomen.add(ab3);
-
   const stinger = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.45, 4), beeDark);
   stinger.rotation.z = -Math.PI / 2;
   stinger.position.x = 1.15;
   abdomen.add(stinger);
-
   bee.add(abdomen);
 
-  // Head
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.85, 0.95), beeYellow);
   head.position.set(-0.75, -0.05, 0);
   bee.add(head);
 
-  // Compound Eyes
   [-0.34, 0.34].forEach(z => {
     const eye = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.42, 0.28), eyeMat);
     eye.position.set(-1.18, 0.04, z);
     bee.add(eye);
   });
 
-  // Wings
   const leftWing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.85), wingMat);
   leftWing.position.set(0.1, 0.55, -0.75);
   bee.add(leftWing);
@@ -586,7 +465,6 @@ function buildBee() {
   rightWing.position.set(0.1, 0.55, 0.75);
   bee.add(rightWing);
 
-  // Pollen Baskets (Corbiculae)
   const pollenBaskets = [];
   [-0.45, 0.45].forEach(z => {
     const basket = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.28), pollenMat);
@@ -610,32 +488,11 @@ function buildBee() {
 
 const { bee: beeMesh, leftWing, rightWing, pollenBaskets, abdomen } = buildBee();
 
-// Drifting Clouds
-const cloudsGroup = new THREE.Group();
-function buildClouds() {
-  for (let c = 0; c < 12; c++) {
-    const cloud = new THREE.Group();
-    const clen = 4 + Math.floor(Math.random() * 5);
-    const cwid = 3 + Math.floor(Math.random() * 4);
-    for (let x = 0; x < clen; x++) {
-      for (let z = 0; z < cwid; z++) {
-        if (Math.random() > 0.25) {
-          const b = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.0, 4.5), materials.cloud);
-          b.position.set(x * 4.0, 0, z * 4.0);
-          cloud.add(b);
-        }
-      }
-    }
-    cloud.position.set((Math.random() - 0.5) * 160, 36 + Math.random() * 8, (Math.random() - 0.5) * 160);
-    cloudsGroup.add(cloud);
-  }
-  scene.add(cloudsGroup);
-}
-buildClouds();
+// ==========================================
+// 7. BIOLOGICAL CENTRAL COMPLEX BRAIN (STONE ET AL. 2017)
+// ==========================================
+const cxBrain = new CentralComplexBrain({ cpu4_mem_gain: 0.005, noise: 0.008 });
 
-// ==========================================
-// 7. SIMULATION & FORAGING CONTROLLER
-// ==========================================
 const simState = {
   paused: false,
   speed: 1.0,
@@ -645,23 +502,29 @@ const simState = {
   deliveredCount: 0
 };
 
-const beeBrain = {
+const beePhysical = {
   position: hivePosition.clone(),
-  velocity: new THREE.Vector3(),
-  heading: new THREE.Vector3(1, 0, 0),
+  velocity: new THREE.Vector3(3.5, 0, 0),
+  headingAngle: 0.0, // radians
+  speed: 5.4,
   nectar: 0,
   maxNectar: 3,
-  mode: 'exploring',
-  target: null,
-  flightTime: 0,
-  speedScalar: 5.6,
-  homeVector: new THREE.Vector3()
+  state: 'searching', // 'searching' | 'feeding' | 'homing'
+  currentTarget: null,
+  feedingTimer: 0,
+  flightTime: 0
 };
 
-function findNearestActiveFlower() {
-  const active = activeFlowers.filter(f => f.active);
-  if (active.length === 0) return null;
-  return active.sort((a, b) => beeBrain.position.distanceToSquared(a.worldPos) - beeBrain.position.distanceToSquared(b.worldPos))[0];
+// Cognitive log helper
+function addCognitiveLog(text) {
+  const log = document.querySelector('#cognitiveLog');
+  if (log) {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.textContent = text;
+    log.appendChild(entry);
+    if (log.children.length > 5) log.removeChild(log.firstChild);
+  }
 }
 
 function setObjective(text) {
@@ -669,170 +532,268 @@ function setObjective(text) {
   if (el) el.textContent = text;
 }
 
-// Controller update loop
-function updateBee(dt) {
-  beeBrain.homeVector.subVectors(hivePosition, beeBrain.position);
+// Find closest flower within sensory visual radius
+function scanVisualFlowers() {
+  const active = activeFlowers.filter(f => f.active);
+  if (active.length === 0) return null;
+  return active.sort((a, b) => beePhysical.position.distanceToSquared(a.worldPos) - beePhysical.position.distanceToSquared(b.worldPos))[0];
+}
 
-  const nearestFlower = findNearestActiveFlower();
+// ==========================================
+// 8. AUTONOMOUS BIOLOGICAL FLIGHT LOOP
+// ==========================================
+function updateBeeFlight(dt) {
+  const simDt = dt * simState.speed;
+  const isHoming = beePhysical.state === 'homing';
 
-  if (beeBrain.nectar >= beeBrain.maxNectar || (!nearestFlower && beeBrain.nectar > 0)) {
-    beeBrain.mode = 'returning';
-    beeBrain.target = { position: hivePosition, name: 'Home Hive', type: 'hive' };
-  } else if (nearestFlower) {
-    beeBrain.mode = 'foraging';
-    beeBrain.target = { position: nearestFlower.worldPos, name: `${nearestFlower.name} #${nearestFlower.id}`, flower: nearestFlower, type: 'flower' };
-  } else {
-    beeBrain.mode = 'exploring';
-    beeBrain.target = null;
-  }
+  // 1. Calculate optic flow velocity for Central Complex
+  const vx = Math.cos(beePhysical.headingAngle) * beePhysical.speed;
+  const vz = Math.sin(beePhysical.headingAngle) * beePhysical.speed;
 
-  let desired = new THREE.Vector3();
-  if (beeBrain.target) {
-    desired.subVectors(beeBrain.target.position, beeBrain.position);
-  } else {
-    // Wander into new procedural frontier
-    desired.set(
-      Math.cos(beeBrain.flightTime * 0.18) * 8 + Math.sin(beeBrain.flightTime * 0.06) * 6,
-      0,
-      Math.sin(beeBrain.flightTime * 0.14) * 8 + Math.cos(beeBrain.flightTime * 0.08) * 6
-    );
-  }
+  // 2. Step the biological Central Complex neural network
+  const neural = cxBrain.step(beePhysical.headingAngle, vx, vz, isHoming);
 
-  // Hazard avoidance
-  activeHazards.forEach(h => {
-    const diff = beeBrain.position.clone().sub(h);
-    const dist = diff.length();
-    if (dist < 6.0) {
-      desired.add(diff.normalize().multiplyScalar((6.0 - dist) * 3.4));
-    }
-  });
+  // 3. Autonomous state & steering decisions
+  if (beePhysical.state === 'feeding') {
+    // Hovering on flower and collecting nectar
+    beePhysical.feedingTimer -= simDt;
+    beePhysical.speed = THREE.MathUtils.lerp(beePhysical.speed, 0.4, 0.1);
 
-  desired.y = 0;
-  desired.normalize();
-
-  const turnRate = 0.045 * dt * 60;
-  beeBrain.heading.lerp(desired, turnRate).normalize();
-  beeBrain.velocity.lerp(beeBrain.heading.clone().multiplyScalar(beeBrain.speedScalar * simState.speed), turnRate);
-
-  beeBrain.position.addScaledVector(beeBrain.velocity, dt);
-
-  // Maintain flight hover altitude above continuous procedural terrain
-  const groundElevation = getTerrainElevation(beeBrain.position.x, beeBrain.position.z);
-  const targetAltitude = Math.max(groundElevation + 2.1, 2.6) + Math.sin(beeBrain.flightTime * 3.0) * 0.32;
-  beeBrain.position.y = THREE.MathUtils.lerp(beeBrain.position.y, targetAltitude, 0.06 * dt * 60);
-
-  // Target arrival check
-  if (beeBrain.target && beeBrain.position.distanceTo(beeBrain.target.position) < 1.35) {
-    if (beeBrain.mode === 'foraging' && beeBrain.target.flower) {
-      beeBrain.target.flower.active = false;
-      beeBrain.target.flower.beacon.visible = false;
-      beeBrain.nectar++;
+    if (beePhysical.feedingTimer <= 0) {
+      beePhysical.nectar++;
       simState.visitedCount++;
-      setObjective(`Collected nectar from ${beeBrain.target.flower.name}! [${beeBrain.nectar}/${beeBrain.maxNectar}]`);
-    } else if (beeBrain.mode === 'returning') {
-      simState.deliveredCount += beeBrain.nectar;
-      beeBrain.nectar = 0;
-      setObjective('🍯 Nectar safely deposited at origin hive! Exploring new chunks…');
+      if (beePhysical.currentTarget) {
+        beePhysical.currentTarget.active = false;
+        beePhysical.currentTarget.beacon.visible = false;
+      }
+
+      if (beePhysical.nectar >= beePhysical.maxNectar) {
+        beePhysical.state = 'homing';
+        setObjective('🍯 Nectar capacity full (3/3). Central Complex homing circuit engaged!');
+        addCognitiveLog(`[CPU1] CPU4 memory charged. Homing vector engaged towards hive.`);
+      } else {
+        beePhysical.state = 'searching';
+        setObjective(`Nectar harvested [${beePhysical.nectar}/${beePhysical.maxNectar}]. Resuming flower search.`);
+        addCognitiveLog(`[SEARCH] Visual foraging resumed in meadow.`);
+      }
+      beePhysical.currentTarget = null;
     }
-    beeBrain.target = null;
+  } else if (beePhysical.state === 'homing') {
+    // PURE CENTRAL COMPLEX HOMING:
+    // Heading is turned by the Central Complex CPU1 motor steering signal
+    beePhysical.speed = THREE.MathUtils.lerp(beePhysical.speed, 5.8, 0.05);
+
+    // Calculate heading difference to home vector bearing
+    const targetBearing = neural.decoded_vector.angle;
+    let diff = targetBearing - beePhysical.headingAngle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+
+    // Apply biological motor steering torque towards home
+    const turnAmount = Math.sign(diff) * Math.min(Math.abs(diff), (2.2 + Math.abs(neural.motor_steering)) * simDt);
+    beePhysical.headingAngle += turnAmount;
+
+    // Check if arrived back at origin hive
+    const distToHive = beePhysical.position.distanceTo(hivePosition);
+    if (distToHive < 2.2) {
+      simState.deliveredCount += beePhysical.nectar;
+      beePhysical.nectar = 0;
+      cxBrain.reset_memory(); // Nest arrival resets path integration memory
+      beePhysical.state = 'searching';
+      // Head outward in a fresh exploratory direction
+      beePhysical.headingAngle += Math.PI * 0.75 + (Math.random() - 0.5) * 0.5;
+      setObjective('🍯 Nectar safely deposited at the hive! Central Complex reset for new expedition.');
+      addCognitiveLog(`[NEST] Hive arrival. ${simState.deliveredCount} total nectar delivered.`);
+    }
+  } else {
+    // 'searching' mode (Outward foraging)
+    beePhysical.speed = THREE.MathUtils.lerp(beePhysical.speed, 5.2, 0.05);
+
+    const nearbyFlower = scanVisualFlowers();
+    const flowerDist = nearbyFlower ? beePhysical.position.distanceTo(nearbyFlower.worldPos) : 999;
+
+    if (nearbyFlower && flowerDist < 18.0) {
+      // Visual flower attraction
+      const angleToFlower = Math.atan2(nearbyFlower.worldPos.z - beePhysical.position.z, nearbyFlower.worldPos.x - beePhysical.position.x);
+      let angleDiff = angleToFlower - beePhysical.headingAngle;
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+      beePhysical.headingAngle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), 2.2 * simDt);
+
+      if (flowerDist < 1.25) {
+        beePhysical.state = 'feeding';
+        beePhysical.currentTarget = nearbyFlower;
+        beePhysical.feedingTimer = 1.4; // 1.4 seconds hover
+        setObjective(`Sipping nectar from ${nearbyFlower.name}…`);
+        addCognitiveLog(`[FEED] Landed on ${nearbyFlower.name}. Nectar uptake active.`);
+      }
+    } else {
+      // Wide natural search sweeps (Levy exploration path)
+      const wander = Math.sin(beePhysical.flightTime * 0.4) * 0.35 + Math.cos(beePhysical.flightTime * 0.15) * 0.2;
+      beePhysical.headingAngle += wander * simDt;
+    }
   }
 
-  beeBrain.flightTime += dt * simState.speed;
+  // Update physical velocity & position
+  beePhysical.velocity.set(
+    Math.cos(beePhysical.headingAngle) * beePhysical.speed,
+    0,
+    Math.sin(beePhysical.headingAngle) * beePhysical.speed
+  );
+
+  beePhysical.position.addScaledVector(beePhysical.velocity, simDt);
+
+  // Flight hover altitude above terrain
+  const groundY = getTerrainElevation(beePhysical.position.x, beePhysical.position.z);
+  const targetAlt = Math.max(groundY + 2.0, 2.5) + Math.sin(beePhysical.flightTime * 3.2) * 0.3;
+  beePhysical.position.y = THREE.MathUtils.lerp(beePhysical.position.y, targetAlt, 0.08);
+
+  beePhysical.flightTime += simDt;
 
   // Sync 3D Mesh
-  beeMesh.position.copy(beeBrain.position);
-  beeMesh.rotation.y = Math.atan2(beeBrain.heading.z, beeBrain.heading.x) - Math.PI;
-  beeMesh.rotation.z = Math.sin(beeBrain.flightTime * 3.5) * 0.07;
-  abdomen.rotation.y = Math.sin(beeBrain.flightTime * 4.0) * 0.08;
+  beeMesh.position.copy(beePhysical.position);
+  beeMesh.rotation.y = beePhysical.headingAngle - Math.PI;
+  beeMesh.rotation.z = (neural.motor_steering || 0) * 0.15 + Math.sin(beePhysical.flightTime * 3.5) * 0.06;
+  abdomen.rotation.y = Math.sin(beePhysical.flightTime * 4.0) * 0.08;
 
-  // Wing flapping
-  const wingSpeed = 32 * simState.speed;
-  leftWing.rotation.x = Math.sin(beeBrain.flightTime * wingSpeed) * 0.65;
-  rightWing.rotation.x = -Math.sin(beeBrain.flightTime * wingSpeed) * 0.65;
+  // Flapping wings
+  const wingSpeed = 34 * simState.speed;
+  leftWing.rotation.x = Math.sin(beePhysical.flightTime * wingSpeed) * 0.65;
+  rightWing.rotation.x = -Math.sin(beePhysical.flightTime * wingSpeed) * 0.65;
 
   // Pollen baskets
-  const hasNectar = beeBrain.nectar > 0;
   pollenBaskets.forEach(b => {
-    b.visible = hasNectar;
-    b.scale.setScalar(0.7 + (beeBrain.nectar / beeBrain.maxNectar) * 0.6);
+    b.visible = beePhysical.nectar > 0;
+    b.scale.setScalar(0.7 + (beePhysical.nectar / beePhysical.maxNectar) * 0.6);
   });
+
+  return neural;
 }
 
 // ==========================================
-// 8. MULTI-CAMERA SYSTEM
+// 9. LIVE NEURAL MONITOR & HUD RENDERING
 // ==========================================
-let chaseInit = false;
+// Setup TB1 Ring HTML nodes
+const tb1RingEl = document.querySelector('#tb1Ring');
+const ringNeedleEl = document.querySelector('#ringNeedle');
+const tb1Nodes = [];
 
-function updateCamera(dt) {
-  if (simState.cameraMode === 'chase') {
-    povOverlay.classList.remove('active');
-    controls.enabled = false;
-
-    const behindOffset = new THREE.Vector3(-beeBrain.heading.x * 7.0, 3.4, -beeBrain.heading.z * 7.0);
-    const targetCamPos = beeBrain.position.clone().add(behindOffset);
-
-    if (!chaseInit) {
-      camera.position.copy(targetCamPos);
-      chaseInit = true;
-    } else {
-      camera.position.lerp(targetCamPos, 1 - Math.exp(-dt * 4.5));
-    }
-
-    const lookAhead = beeBrain.position.clone().add(new THREE.Vector3(beeBrain.heading.x * 4.5, -0.2, beeBrain.heading.z * 4.5));
-    camera.lookAt(lookAhead);
-  } else if (simState.cameraMode === 'pov') {
-    povOverlay.classList.add('active');
-    controls.enabled = false;
-
-    const eyeOffset = new THREE.Vector3(beeBrain.heading.x * 0.8, 0.1, beeBrain.heading.z * 0.8);
-    camera.position.copy(beeBrain.position.clone().add(eyeOffset));
-    const lookTarget = beeBrain.position.clone().add(new THREE.Vector3(beeBrain.heading.x * 12, -0.5, beeBrain.heading.z * 12));
-    camera.lookAt(lookTarget);
-  } else if (simState.cameraMode === 'orbit') {
-    povOverlay.classList.remove('active');
-    controls.enabled = true;
-    controls.update();
+if (tb1RingEl) {
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * 2 * Math.PI) / 8 - Math.PI / 2;
+    const r = 32; // radius in px
+    const x = 40 + Math.cos(angle) * r;
+    const y = 40 + Math.sin(angle) * r;
+    const node = document.createElement('div');
+    node.className = 'ring-node';
+    node.style.left = `${x}px`;
+    node.style.top = `${y}px`;
+    tb1RingEl.appendChild(node);
+    tb1Nodes.push(node);
   }
 }
 
-// ==========================================
-// 9. TELEMETRY & HUD
-// ==========================================
+// Setup CPU4 Bars HTML
+const cpu4BarsEl = document.querySelector('#cpu4Bars');
+const cpu4Fills = [];
+
+if (cpu4BarsEl) {
+  for (let i = 0; i < 16; i++) {
+    const track = document.createElement('div');
+    track.className = 'cpu4-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'cpu4-bar-fill';
+    fill.style.height = '50%';
+    track.appendChild(fill);
+    cpu4BarsEl.appendChild(track);
+    cpu4Fills.push(fill);
+  }
+}
+
+function updateNeuralHUD(neural) {
+  if (!neural) return;
+
+  // 1. TB1 Ring Attractor
+  if (tb1Nodes.length === 8) {
+    for (let i = 0; i < 8; i++) {
+      const val = neural.tb1[i];
+      tb1Nodes[i].style.background = `rgba(247, 201, 86, ${0.1 + val * 0.9})`;
+      tb1Nodes[i].style.boxShadow = val > 0.6 ? `0 0 10px rgba(247, 201, 86, ${val * 0.8})` : 'none';
+    }
+  }
+
+  if (ringNeedleEl) {
+    const deg = (beePhysical.headingAngle * 180) / Math.PI;
+    ringNeedleEl.style.transform = `rotate(${deg}deg)`;
+    const compEl = document.querySelector('#compassDeg');
+    if (compEl) compEl.textContent = `${Math.round(((deg % 360) + 360) % 360)}°`;
+  }
+
+  // 2. CPU4 Memory Integrator Bars
+  if (cpu4Fills.length === 16) {
+    for (let i = 0; i < 16; i++) {
+      const val = neural.cpu4_mem[i];
+      cpu4Fills[i].style.height = `${Math.max(4, val * 100)}%`;
+      if (i < 8) {
+        cpu4Fills[i].style.background = 'linear-gradient(0deg, #38bdf8, #818cf8)';
+      } else {
+        cpu4Fills[i].style.background = 'linear-gradient(0deg, #f472b6, #fb923c)';
+      }
+    }
+  }
+
+  // 3. CPU1 Steering Torque Needle
+  const gaugeNeedle = document.querySelector('#gaugeNeedle');
+  const steerValEl = document.querySelector('#steerVal');
+  if (gaugeNeedle && steerValEl) {
+    const steer = Math.max(-1.0, Math.min(1.0, neural.motor_steering));
+    steerValEl.textContent = `${steer > 0 ? '+' : ''}${steer.toFixed(2)}`;
+    gaugeNeedle.style.transform = `scaleX(${steer})`;
+    gaugeNeedle.style.background = steer > 0 ? '#4ade80' : '#f87171';
+  }
+
+  // 4. Decoded Home Vector
+  const decodedVectorEl = document.querySelector('#decodedVectorReadout');
+  if (decodedVectorEl && neural.decoded_vector) {
+    const dDist = neural.decoded_vector.distance.toFixed(1);
+    const dAng = Math.round((neural.decoded_vector.angle * 180) / Math.PI);
+    decodedVectorEl.textContent = `${dDist}m @ ${dAng}°`;
+  }
+}
+
 function updateHUD() {
   const modeBadge = document.querySelector('#modeBadge');
   if (modeBadge) {
-    modeBadge.className = `status-badge ${beeBrain.mode}`;
-    modeBadge.textContent = beeBrain.mode.toUpperCase();
+    modeBadge.className = `status-badge ${beePhysical.state === 'homing' ? 'returning' : beePhysical.state === 'feeding' ? 'foraging' : 'exploring'}`;
+    modeBadge.textContent = beePhysical.state.toUpperCase();
   }
 
-  const biome = getBiomeAt(beeBrain.position.x, beeBrain.position.z);
+  const biome = getBiomeAt(beePhysical.position.x, beePhysical.position.z);
   const biomeReadout = document.querySelector('#biomeReadout');
   if (biomeReadout) biomeReadout.textContent = biome;
 
-  const worldTitle = document.querySelector('#worldTitle');
-  if (worldTitle) worldTitle.textContent = `${biome} Biome`;
-
-  const homeDist = beeBrain.position.distanceTo(hivePosition).toFixed(1);
+  const homeDist = beePhysical.position.distanceTo(hivePosition).toFixed(1);
   const homeReadout = document.querySelector('#homeReadout');
   if (homeReadout) homeReadout.textContent = `${homeDist} m`;
 
   const targetReadout = document.querySelector('#targetReadout');
   if (targetReadout) {
-    targetReadout.textContent = beeBrain.target ? beeBrain.target.name : 'Exploring frontier…';
+    targetReadout.textContent = beePhysical.state === 'homing' ? 'Origin Hive (via Central Complex)' : beePhysical.currentTarget ? `Hovering: ${beePhysical.currentTarget.name}` : 'Searching field for flowers…';
   }
 
   const altReadout = document.querySelector('#altReadout');
-  if (altReadout) altReadout.textContent = `${beeBrain.position.y.toFixed(1)} m`;
+  if (altReadout) altReadout.textContent = `${beePhysical.position.y.toFixed(1)} m`;
 
   const speedStat = document.querySelector('#speedStatReadout');
-  if (speedStat) speedStat.textContent = `${(beeBrain.velocity.length()).toFixed(1)} m/s`;
+  if (speedStat) speedStat.textContent = `${beePhysical.speed.toFixed(1)} m/s`;
 
   const nectarText = document.querySelector('#nectarText');
-  if (nectarText) nectarText.textContent = `${beeBrain.nectar} / ${beeBrain.maxNectar}`;
+  if (nectarText) nectarText.textContent = `${beePhysical.nectar} / ${beePhysical.maxNectar}`;
 
   const nectarBar = document.querySelector('#nectarBar');
   if (nectarBar) {
-    nectarBar.style.width = `${(beeBrain.nectar / beeBrain.maxNectar) * 100}%`;
+    nectarBar.style.width = `${(beePhysical.nectar / beePhysical.maxNectar) * 100}%`;
   }
 
   const visitedEl = document.querySelector('#visitedCount');
@@ -841,11 +802,11 @@ function updateHUD() {
   const deliveredEl = document.querySelector('#deliveredCount');
   if (deliveredEl) deliveredEl.textContent = simState.deliveredCount;
 
-  const currentCx = Math.floor((beeBrain.position.x + CHUNK_SIZE / 2) / CHUNK_SIZE);
-  const currentCz = Math.floor((beeBrain.position.z + CHUNK_SIZE / 2) / CHUNK_SIZE);
+  const currentCx = Math.floor((beePhysical.position.x + CHUNK_SIZE / 2) / CHUNK_SIZE);
+  const currentCz = Math.floor((beePhysical.position.z + CHUNK_SIZE / 2) / CHUNK_SIZE);
 
   const coordsEl = document.querySelector('#biomeCoords');
-  if (coordsEl) coordsEl.textContent = `X: ${Math.round(beeBrain.position.x)} | Z: ${Math.round(beeBrain.position.z)}`;
+  if (coordsEl) coordsEl.textContent = `X: ${Math.round(beePhysical.position.x)} | Z: ${Math.round(beePhysical.position.z)}`;
 
   const chunkCoordsEl = document.querySelector('#chunkCoords');
   if (chunkCoordsEl) chunkCoordsEl.textContent = `Chunk [${currentCx}, ${currentCz}]`;
@@ -855,7 +816,50 @@ function updateHUD() {
 }
 
 // ==========================================
-// 10. CONTROLS & INTERACTION
+// 10. MULTI-CAMERA SYSTEM
+// ==========================================
+let chaseInit = false;
+
+function updateCamera(dt) {
+  if (simState.cameraMode === 'chase') {
+    povOverlay.classList.remove('active');
+    controls.enabled = false;
+
+    const headingX = Math.cos(beePhysical.headingAngle);
+    const headingZ = Math.sin(beePhysical.headingAngle);
+
+    const behindOffset = new THREE.Vector3(-headingX * 7.0, 3.4, -headingZ * 7.0);
+    const targetCamPos = beePhysical.position.clone().add(behindOffset);
+
+    if (!chaseInit) {
+      camera.position.copy(targetCamPos);
+      chaseInit = true;
+    } else {
+      camera.position.lerp(targetCamPos, 1 - Math.exp(-dt * 4.5));
+    }
+
+    const lookAhead = beePhysical.position.clone().add(new THREE.Vector3(headingX * 4.5, -0.2, headingZ * 4.5));
+    camera.lookAt(lookAhead);
+  } else if (simState.cameraMode === 'pov') {
+    povOverlay.classList.add('active');
+    controls.enabled = false;
+
+    const headingX = Math.cos(beePhysical.headingAngle);
+    const headingZ = Math.sin(beePhysical.headingAngle);
+
+    const eyeOffset = new THREE.Vector3(headingX * 0.8, 0.1, headingZ * 0.8);
+    camera.position.copy(beePhysical.position.clone().add(eyeOffset));
+    const lookTarget = beePhysical.position.clone().add(new THREE.Vector3(headingX * 12, -0.5, headingZ * 12));
+    camera.lookAt(lookTarget);
+  } else if (simState.cameraMode === 'orbit') {
+    povOverlay.classList.remove('active');
+    controls.enabled = true;
+    controls.update();
+  }
+}
+
+// ==========================================
+// 11. OBSERVER CONTROLS
 // ==========================================
 const camBtns = {
   chase: document.querySelector('#camChase'),
@@ -869,7 +873,7 @@ function setCameraMode(mode) {
     if (camBtns[k]) camBtns[k].classList.toggle('active', k === mode);
   });
   if (mode === 'orbit') {
-    controls.target.copy(beeBrain.position);
+    controls.target.copy(beePhysical.position);
   }
 }
 
@@ -915,30 +919,33 @@ if (toggleButton) {
 const resetButton = document.querySelector('#resetButton');
 if (resetButton) {
   resetButton.onclick = () => {
-    beeBrain.position.copy(hivePosition);
-    beeBrain.velocity.set(0, 0, 0);
-    beeBrain.nectar = 0;
-    beeBrain.target = null;
+    beePhysical.position.copy(hivePosition);
+    beePhysical.headingAngle = 0;
+    beePhysical.nectar = 0;
+    beePhysical.state = 'searching';
+    beePhysical.currentTarget = null;
+    cxBrain.reset_memory();
     chaseInit = false;
     activeFlowers.forEach(f => {
       f.active = true;
-      f.beacon.visible = true;
+      if (f.beacon) f.beacon.visible = true;
     });
-    setObjective('Flight reset at the origin hive entrance.');
+    setObjective('Experiment reset at origin hive.');
+    addCognitiveLog('[RESET] Central complex and flight state reset.');
   };
 }
 
 const plantBtn = document.querySelector('#plantBtn');
 if (plantBtn) {
   plantBtn.onclick = () => {
-    const rx = beeBrain.position.x + (Math.random() - 0.5) * 16;
-    const rz = beeBrain.position.z + (Math.random() - 0.5) * 16;
+    const rx = beePhysical.position.x + (Math.random() - 0.5) * 16;
+    const rz = beePhysical.position.z + (Math.random() - 0.5) * 16;
     const cx = Math.floor((rx + CHUNK_SIZE / 2) / CHUNK_SIZE);
     const cz = Math.floor((rz + CHUNK_SIZE / 2) / CHUNK_SIZE);
     const chunk = loadedChunks.get(`${cx},${cz}`);
     if (chunk) {
       chunk.addFlower(rx - chunk.worldX, rz - chunk.worldZ);
-      setObjective(`Planted a flower in chunk [${cx}, ${cz}]!`);
+      setObjective(`Spawned fresh flower in field [${Math.round(rx)}, ${Math.round(rz)}].`);
     }
   };
 }
@@ -952,28 +959,6 @@ if (speedRange) {
   };
 }
 
-// Click to plant flower
-canvas.addEventListener('click', e => {
-  if (simState.cameraMode === 'orbit') return;
-
-  const rect = canvas.getBoundingClientRect();
-  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-  raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(groundRaycastMeshes);
-  if (intersects.length > 0) {
-    const hit = intersects[0].point;
-    const cx = Math.floor((hit.x + CHUNK_SIZE / 2) / CHUNK_SIZE);
-    const cz = Math.floor((hit.z + CHUNK_SIZE / 2) / CHUNK_SIZE);
-    const chunk = loadedChunks.get(`${cx},${cz}`);
-    if (chunk) {
-      chunk.addFlower(hit.x - chunk.worldX, hit.z - chunk.worldZ);
-      setObjective(`Planted a fresh flower at [${Math.round(hit.x)}, ${Math.round(hit.z)}]!`);
-    }
-  }
-});
-
 function onResize() {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
@@ -985,7 +970,7 @@ window.addEventListener('resize', onResize);
 onResize();
 
 // ==========================================
-// 11. MAIN ANIMATION & RENDERING LOOP
+// 12. MAIN ANIMATION & RENDERING LOOP
 // ==========================================
 let lastTime = performance.now();
 
@@ -995,22 +980,19 @@ function animate(currentTime) {
   const dt = Math.min(0.05, (currentTime - lastTime) / 1000);
   lastTime = currentTime;
 
+  let neural = null;
   if (!simState.paused) {
-    updateBee(dt);
+    neural = updateBeeFlight(dt);
   }
 
-  // Update dynamic chunk streaming around bee
-  updateWorldChunks(beeBrain.position.x, beeBrain.position.z, dt);
+  // Update procedural chunk streaming around the autonomous bee
+  updateWorldChunks(beePhysical.position.x, beePhysical.position.z, dt);
 
-  // Cloud drift relative to bee
-  cloudsGroup.position.x = beeBrain.position.x * 0.2;
-  cloudsGroup.position.z = beeBrain.position.z * 0.2;
-  cloudsGroup.children.forEach(c => {
-    c.position.x += 1.1 * dt;
-    if (c.position.x > 80) c.position.x = -80;
-  });
+  // Drifting clouds
+  cloudsGroup.position.x = beePhysical.position.x * 0.2;
+  cloudsGroup.position.z = beePhysical.position.z * 0.2;
 
-  // Hovering flower beacon animation
+  // Hovering flower beacons
   activeFlowers.forEach(f => {
     if (f.active && f.beacon) {
       f.beacon.position.y = 1.65 + Math.sin(currentTime * 0.004 + f.id) * 0.12;
@@ -1018,9 +1000,29 @@ function animate(currentTime) {
   });
 
   updateCamera(dt);
+  updateNeuralHUD(neural);
   updateHUD();
   renderer.render(scene, camera);
 }
 
-setObjective('Infinite procedural voxel world initialized.');
+// Drifting Clouds Group
+const cloudsGroup = new THREE.Group();
+for (let c = 0; c < 12; c++) {
+  const cloud = new THREE.Group();
+  for (let x = 0; x < 4; x++) {
+    for (let z = 0; z < 3; z++) {
+      if (Math.random() > 0.2) {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.0, 4.5), materials.cloud);
+        b.position.set(x * 4.0, 0, z * 4.0);
+        cloud.add(b);
+      }
+    }
+  }
+  cloud.position.set((Math.random() - 0.5) * 160, 36 + Math.random() * 8, (Math.random() - 0.5) * 160);
+  cloudsGroup.add(cloud);
+}
+scene.add(cloudsGroup);
+
+setObjective('Central Complex autonomous brain experiment active.');
+addCognitiveLog('[INIT] Stone et al. (2017) Central Complex online.');
 requestAnimationFrame(animate);

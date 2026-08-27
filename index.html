@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BeeCX — Infinite Minecraft-Style Procedural Voxel World</title>
-    <meta name="description" content="Infinite procedural voxel world simulation of a honeybee foraging with biological Central Complex path integration." />
+    <title>BeeCX — Biological Bee Brain (Central Complex) & Minecraft World</title>
+    <meta name="description" content="Computational biology experiment: Transferring the Stone et al. (2017) Central Complex bee brain model into an autonomous bee in a procedural Minecraft voxel world." />
     <link rel="stylesheet" href="styles.css" />
     <script type="importmap">
       {
@@ -18,7 +18,7 @@
   <body>
     <main id="gameShell">
       <!-- 3D WebGL Canvas -->
-      <canvas id="world" aria-label="An infinite 3D procedural voxel world simulating a bee in a riverside biome"></canvas>
+      <canvas id="world" aria-label="A live 3D voxel world simulating an autonomous bee driven by Central Complex path integration"></canvas>
 
       <!-- Compound Eye Hexagonal POV Filter -->
       <div id="povOverlay" aria-hidden="true"></div>
@@ -26,14 +26,14 @@
       <!-- Top-Left Branding & Environment Telemetry -->
       <header class="hud top-left-hud">
         <div class="brand-badge">
-          <span class="logo-pill">BEE-CX INFINITE</span>
+          <span class="logo-pill">BEE BRAIN CX-2017</span>
           <div class="environment-tag">
-            <span><i class="indicator-active"></i> PROCEDURAL VOXEL STREAMING</span>
+            <span><i class="indicator-active"></i> STONE ET AL. (2017) CENTRAL COMPLEX</span>
             <span id="biomeCoords">X: 0 | Z: 0</span>
             <span id="chunkCoords">Chunk [0, 0]</span>
           </div>
         </div>
-        <h1 id="worldTitle">Riverside Biome</h1>
+        <h1 id="worldTitle">Autonomous Bee Brain Experiment</h1>
       </header>
 
       <!-- Top-Right Camera Modes & Lighting Selector -->
@@ -49,16 +49,71 @@
             <span>🌐 Orbit</span>
           </button>
         </div>
-        <button id="timeBtn" class="btn-glass" title="Toggle Golden Hour / Daylight / Dusk">
+        <button id="timeBtn" class="btn-glass" title="Toggle Sun / Golden Hour / Twilight">
           <span id="timeIcon">☀️</span> <span id="timeLabel">Noon</span>
         </button>
       </div>
 
-      <!-- Bee Internal State & Telemetry -->
+      <!-- Left Side: Live Central Complex Neural Brain Activity Monitor -->
+      <aside class="hud neural-hud" id="neuralMonitor" aria-label="Central Complex Neural Monitor">
+        <div class="panel-header">
+          <span class="panel-title">🧠 CENTRAL COMPLEX (CX) BRAIN</span>
+          <span class="neural-badge">LIVE FIRING</span>
+        </div>
+
+        <!-- TB1 Protocerebral Bridge Compass Ring Attractor -->
+        <div class="neural-section">
+          <div class="neural-section-title">
+            <span>TB1 Compass Ring (8 Columns)</span>
+            <span id="compassDeg" class="sub-val">0°</span>
+          </div>
+          <div class="tb1-ring-container">
+            <div class="tb1-ring" id="tb1Ring">
+              <!-- 8 Radial Nodes populated by JS -->
+            </div>
+            <div class="ring-needle" id="ringNeedle"></div>
+          </div>
+        </div>
+
+        <!-- CPU4 Memory Integrators (16 Pontine Neurons) -->
+        <div class="neural-section">
+          <div class="neural-section-title">
+            <span>CPU4 Memory Integrators (16 Neurons)</span>
+            <span class="sub-val">L (8) | R (8)</span>
+          </div>
+          <div class="cpu4-bars-grid" id="cpu4Bars">
+            <!-- 16 Live Activity Bars -->
+          </div>
+        </div>
+
+        <!-- CPU1 Steering Motor Differential -->
+        <div class="neural-section">
+          <div class="neural-section-title">
+            <span>CPU1 Motor Steering Torque</span>
+            <span id="steerVal" class="sub-val">0.00</span>
+          </div>
+          <div class="torque-gauge">
+            <div class="gauge-marker-center"></div>
+            <div class="gauge-needle" id="gaugeNeedle"></div>
+          </div>
+          <div class="gauge-labels">
+            <span>◀ Turn Left</span>
+            <span>Turn Right ▶</span>
+          </div>
+        </div>
+
+        <!-- Decoded Home Vector vs Truth -->
+        <div class="neural-telemetry-row">
+          <span class="t-label">Decoded Vector:</span>
+          <span class="t-val" id="decodedVectorReadout">0.0m @ 0°</span>
+        </div>
+      </aside>
+
+      <!-- Right Side: Bee Telemetry & Cognitive Behavior Monitor -->
       <aside class="hud brain-hud" aria-live="polite">
         <div class="panel-header">
-          <span class="panel-title">Bee Telemetry</span>
-          <span id="modeBadge" class="status-badge exploring">EXPLORING</span>
+          <span class="panel-title">Bee Behavioral State</span>
+          <span id="modeBadge" class="status-badge exploring">SEARCHING</span>
         </div>
         <dl class="telemetry-list">
           <div class="telemetry-row">
@@ -66,7 +121,7 @@
             <dd id="biomeReadout">Lush Meadow</dd>
           </div>
           <div class="telemetry-row">
-            <dt>Home Vector</dt>
+            <dt>Physical Distance to Hive</dt>
             <dd id="homeReadout">0.0 m</dd>
           </div>
           <div class="telemetry-row">
@@ -74,18 +129,19 @@
             <dd id="chunksCount">49 Loaded</dd>
           </div>
           <div class="telemetry-row">
-            <dt>Flight Target</dt>
-            <dd id="targetReadout">Scanning meadow</dd>
+            <dt>Current Target</dt>
+            <dd id="targetReadout">Scanning flowers…</dd>
           </div>
           <div class="telemetry-row">
             <dt>Altitude</dt>
             <dd id="altReadout">2.4 m</dd>
           </div>
           <div class="telemetry-row">
-            <dt>Velocity</dt>
-            <dd id="speedStatReadout">5.1 m/s</dd>
+            <dt>Optic Flow Velocity</dt>
+            <dd id="speedStatReadout">5.4 m/s</dd>
           </div>
         </dl>
+
         <div class="nectar-meter-wrap">
           <div class="meter-label">
             <span>Nectar Payload</span>
@@ -95,42 +151,50 @@
             <div id="nectarBar" class="meter-fill"></div>
           </div>
         </div>
+
+        <!-- Live Cognitive Thought Stream -->
+        <div class="cognitive-stream-wrap">
+          <span class="cognitive-title">Autonomous Cognitive Log:</span>
+          <div class="cognitive-log" id="cognitiveLog">
+            <div class="log-entry">[CX] Neural central complex initialized.</div>
+          </div>
+        </div>
       </aside>
 
       <!-- Center-Bottom Objective Toast -->
       <div class="hud objective-toast" id="objective" role="status">
-        <i>✦</i> <span id="objectiveText">World generating step-by-step around the hive…</span>
+        <i>✦</i> <span id="objectiveText">Autonomous Central Complex controller online…</span>
       </div>
 
-      <!-- Bottom Interactive Control Toolbar -->
+      <!-- Bottom Control Toolbar (Observer Controls Only) -->
       <footer class="hud bottom-toolbar">
         <div class="controls-left">
           <button id="toggleButton" class="btn-glass">
             <span id="playIcon">⏸</span> Pause
           </button>
           <button id="resetButton" class="btn-glass">
-            <span>↺</span> Reset Flight
+            <span>↺</span> Reset Experiment
           </button>
           <button id="plantBtn" class="btn-glass btn-highlight">
-            <span>🌸</span> Plant Flower
+            <span>🌸</span> Spawn Flower in Field
           </button>
         </div>
 
         <div class="controls-center">
           <div class="speed-control">
-            <span>Speed</span>
+            <span>Sim Speed</span>
             <input id="speedRange" type="range" min="0.5" max="3" step="0.5" value="1" aria-label="Simulation speed multiplier" />
             <output id="speedOutput">1.0×</output>
           </div>
           <div class="click-hint">
-            <kbd>Click Ground</kbd> to plant flower
+            <span>Observer Mode • Central Complex Autonomous Flight</span>
           </div>
         </div>
 
         <div class="controls-right">
           <div class="stats-counter" id="statsReadout">
-            <span>Visited: <strong id="visitedCount">0</strong></span>
-            <span>Delivered: <strong id="deliveredCount">0</strong></span>
+            <span>Flowers Visited: <strong id="visitedCount">0</strong></span>
+            <span>Nectar Delivered: <strong id="deliveredCount">0</strong></span>
           </div>
         </div>
       </footer>
