@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ==========================================
-// 1. ENGINE & SCENE SETUP
+// 1. ENGINE & THREE.JS SETUP
 // ==========================================
 const canvas = document.querySelector('#world');
 const povOverlay = document.querySelector('#povOverlay');
@@ -16,84 +16,84 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 350);
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 400);
 
-// Orbit Controls for god/free-cam mode
+// Orbit Controls for free-cam / god mode
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-controls.dampingFactor = 0.05;
-controls.maxDistance = 140;
+controls.dampingFactor = 0.06;
+controls.maxDistance = 180;
 controls.minDistance = 3;
-controls.maxPolarAngle = Math.PI / 2 - 0.03; // don't go below ground
-controls.enabled = false; // enabled when in orbit mode
+controls.maxPolarAngle = Math.PI / 2 - 0.02;
+controls.enabled = false;
 
 // Raycaster for interactive flower planting
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 // ==========================================
-// 2. LIGHTING & ATMOSPHERE
+// 2. LIGHTING & DYNAMIC ATMOSPHERE
 // ==========================================
-const skyColors = {
-  noon: { sky: '#86ccf2', fog: '#aedef8', sun: '#fff4cc', hemiSky: '#d8f2ff', hemiGround: '#395c2e', sunPos: [-45, 55, -30], exposure: 1.2 },
-  golden: { sky: '#e89858', fog: '#f2bb8a', sun: '#ffa048', hemiSky: '#ffd29d', hemiGround: '#422818', sunPos: [-60, 24, -30], exposure: 1.25 },
-  twilight: { sky: '#18243b', fog: '#20324e', sun: '#7395c9', hemiSky: '#2f4b73', hemiGround: '#121c16', sunPos: [-40, 18, -40], exposure: 0.95 }
+const skyPresets = {
+  noon: { sky: '#82cbf0', fog: '#ace0fa', sun: '#fff5d1', hemiSky: '#d8f4ff', hemiGround: '#355928', sunPos: [-45, 60, -35], exposure: 1.2 },
+  golden: { sky: '#e89855', fog: '#f4bd8b', sun: '#ffa048', hemiSky: '#ffd59f', hemiGround: '#432917', sunPos: [-65, 26, -30], exposure: 1.25 },
+  twilight: { sky: '#16233a', fog: '#1e304b', sun: '#799ccd', hemiSky: '#2b476e', hemiGround: '#121d17', sunPos: [-40, 18, -40], exposure: 0.95 }
 };
 
-let currentSky = 'noon';
-scene.background = new THREE.Color(skyColors.noon.sky);
-scene.fog = new THREE.Fog(skyColors.noon.fog, 45, 190);
+let currentSkyPreset = 'noon';
+scene.background = new THREE.Color(skyPresets.noon.sky);
+scene.fog = new THREE.Fog(skyPresets.noon.fog, 55, 175);
 
-const hemiLight = new THREE.HemisphereLight(skyColors.noon.hemiSky, skyColors.noon.hemiGround, 2.2);
+const hemiLight = new THREE.HemisphereLight(skyPresets.noon.hemiSky, skyPresets.noon.hemiGround, 2.2);
 scene.add(hemiLight);
 
-const sunLight = new THREE.DirectionalLight(skyColors.noon.sun, 3.8);
-sunLight.position.set(-45, 55, -30);
+const sunLight = new THREE.DirectionalLight(skyPresets.noon.sun, 3.8);
+sunLight.position.set(-45, 60, -35);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.set(2048, 2048);
-sunLight.shadow.camera.left = -55;
-sunLight.shadow.camera.right = 55;
-sunLight.shadow.camera.top = 55;
-sunLight.shadow.camera.bottom = -55;
+sunLight.shadow.camera.left = -65;
+sunLight.shadow.camera.right = 65;
+sunLight.shadow.camera.top = 65;
+sunLight.shadow.camera.bottom = -65;
 sunLight.shadow.camera.near = 10;
-sunLight.shadow.camera.far = 160;
+sunLight.shadow.camera.far = 200;
 sunLight.shadow.bias = -0.0004;
 scene.add(sunLight);
 
 // ==========================================
-// 3. MATERIAL PALETTE
+// 3. SHARED VOXEL MATERIALS & GEOMETRIES
 // ==========================================
 const mat = (color, roughness = 0.8) => new THREE.MeshLambertMaterial({ color, flatShading: true });
 const materials = {
-  grass: mat('#5ba338'),
-  grassAlt: mat('#4d8f2e'),
-  grassHigh: mat('#68b73f'),
-  dirt: mat('#6d4d2b'),
-  stone: mat('#7b8288'),
-  stoneDark: mat('#606569'),
-  sand: mat('#e3d198'),
-  woodOak: mat('#6d4e2d'),
-  woodBirch: mat('#e0ded6'),
+  grass: mat('#5aa437'),
+  grassAlt: mat('#4a8d2c'),
+  grassHigh: mat('#66b53c'),
+  dirt: mat('#6b4c2b'),
+  stone: mat('#7a8187'),
+  stoneDark: mat('#5e6368'),
+  sand: mat('#e2d095'),
+  woodOak: mat('#6a4c2b'),
+  woodBirch: mat('#dfdcd4'),
   woodPlank: mat('#885e38'),
-  woodDark: mat('#442e1a'),
-  leafOak1: mat('#38832e'),
-  leafOak2: mat('#499c3d'),
-  leafOak3: mat('#296b20'),
-  leafBirch: mat('#66a840'),
-  roof: mat('#534336'),
-  chimney: mat('#837c75'),
+  woodDark: mat('#422d19'),
+  leafOak1: mat('#38842d'),
+  leafOak2: mat('#489c3c'),
+  leafOak3: mat('#286b1f'),
+  leafBirch: mat('#65a73e'),
+  roof: mat('#524235'),
+  chimney: mat('#827b74'),
   flowerRed: mat('#e63946'),
   flowerYellow: mat('#ffc300'),
   flowerPurple: mat('#9d4edd'),
   flowerBlue: mat('#3a86ff'),
   flowerPink: mat('#ff70a6'),
   stem: mat('#3d8534'),
-  hiveBox: mat('#e3a033'),
-  hiveStrip: mat('#8c591b'),
-  hazard: mat('#b33939'),
-  cloud: new THREE.MeshLambertMaterial({ color: '#f3f9fc', transparent: true, opacity: 0.88, flatShading: true }),
+  hiveBox: mat('#e29f32'),
+  hiveStrip: mat('#8a581a'),
+  hazard: mat('#b23838'),
+  cloud: new THREE.MeshLambertMaterial({ color: '#f5fafc', transparent: true, opacity: 0.88, flatShading: true }),
   water: new THREE.MeshPhongMaterial({
-    color: '#2888cf',
+    color: '#288acf',
     transparent: true,
     opacity: 0.82,
     shininess: 95,
@@ -101,320 +101,430 @@ const materials = {
   })
 };
 
-// ==========================================
-// 4. VOXEL WORLD BUILDER
-// ==========================================
-const groundGroup = new THREE.Group();
-scene.add(groundGroup);
+// Reusable block geometries
+const blockGeo = new THREE.BoxGeometry(2, 1, 2);
+const blockGeoTall = new THREE.BoxGeometry(2, 2.4, 2);
 
-const collidableBlocks = [];
-
-function addBlock(x, y, z, sx, sy, sz, material, castShadow = true, receiveShadow = true, isGround = false) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
-  mesh.position.set(x, y, z);
-  mesh.castShadow = castShadow;
-  mesh.receiveShadow = receiveShadow;
-  mesh.matrixAutoUpdate = true;
-  if (isGround) {
-    groundGroup.add(mesh);
-  } else {
-    scene.add(mesh);
-  }
-  return mesh;
+// ==========================================
+// 4. CONTINUOUS PROCEDURAL NOISE & BIOMES
+// ==========================================
+// Deterministic Hash / Pseudo-random generator for chunks
+function hash2D(x, z) {
+  const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
+  return n - Math.floor(n);
 }
 
-// Procedural Height Formula for rolling hills & river channel
-function getTerrainHeight(x, z) {
-  const riverDist = Math.abs(x - (Math.sin(z * 0.08) * 6 + 2));
-  if (riverDist < 5.2) {
-    return -1.35; // river bed
-  }
-  // Hill waves
-  const hill1 = Math.sin(x * 0.07) * Math.cos(z * 0.06) * 2.2;
-  const hill2 = Math.sin((x + z) * 0.04) * 1.5;
-  const mountain = (x < -28) ? Math.max(0, (-28 - x) * 0.28) : 0;
-  return Math.round((hill1 + hill2 + mountain) * 0.5) * 0.8 - 0.2;
+// Continuous Winding River Channel Formula
+function getRiverOffset(z) {
+  return Math.sin(z * 0.035) * 16 + Math.sin(z * 0.09) * 7;
 }
 
-// Build Terrain
-function buildTerrain() {
-  const size = 36;
-  const step = 2;
+// Infinite Continuous Heightmap Formula
+function getTerrainElevation(x, z) {
+  const riverX = getRiverOffset(z);
+  const riverDist = Math.abs(x - riverX);
 
-  for (let x = -size; x <= size; x += step) {
-    for (let z = -size; z <= size; z += step) {
-      const riverCenter = Math.sin(z * 0.08) * 6 + 2;
-      const riverDist = Math.abs(x - riverCenter);
-      const isRiver = riverDist < 5.2;
-      const isBank = !isRiver && riverDist < 7.6;
-      const height = isRiver ? -1.35 : getTerrainHeight(x, z);
+  if (riverDist < 5.6) {
+    return -1.45; // Water channel bed
+  }
 
-      let material = isRiver ? materials.dirt : isBank ? materials.sand : materials.grass;
-      if (!isRiver && !isBank) {
-        if (x < -24) material = materials.stone;
-        else if (height > 0.8) material = materials.grassHigh;
-        else if ((x + z) % 4 === 0) material = materials.grassAlt;
+  // Multi-frequency rolling hills
+  const h1 = Math.sin(x * 0.045) * Math.cos(z * 0.04) * 2.8;
+  const h2 = Math.sin((x * 0.08 + z * 0.06)) * 1.8;
+  const h3 = Math.cos((x * 0.02 - z * 0.03)) * 2.2;
+
+  // Mountain ridge factor in certain sectors
+  const ridgeNoise = Math.sin(x * 0.015 + 1.2) * Math.cos(z * 0.018);
+  const ridge = ridgeNoise > 0.4 ? (ridgeNoise - 0.4) * 10 : 0;
+
+  // Quantized step-like voxel heights
+  const rawH = h1 + h2 + h3 + ridge;
+  return Math.round(rawH * 0.5) * 0.8 - 0.1;
+}
+
+// Biome Classifier
+function getBiomeAt(x, z) {
+  const riverDist = Math.abs(x - getRiverOffset(z));
+  if (riverDist < 7.8) return 'Riverside Bank';
+  const elev = getTerrainElevation(x, z);
+  if (elev > 2.8) return 'Rocky Ridge';
+  if (hash2D(Math.floor(x / 32), Math.floor(z / 32)) > 0.55) return 'Dense Forest';
+  return 'Lush Meadow';
+}
+
+// ==========================================
+// 5. CHUNK-BASED PROCEDURAL WORLD STREAMER
+// ==========================================
+const CHUNK_SIZE = 16;       // 16 world units per chunk (8x8 blocks of size 2)
+const RENDER_RADIUS = 3;    // 7x7 grid = 49 active chunks
+const loadedChunks = new Map();
+const activeFlowers = [];
+const activeHazards = [];
+const worldRoot = new THREE.Group();
+scene.add(worldRoot);
+
+const groundRaycastMeshes = [];
+
+class VoxelChunk {
+  constructor(cx, cz) {
+    this.cx = cx;
+    this.cz = cz;
+    this.key = `${cx},${cz}`;
+    this.worldX = cx * CHUNK_SIZE;
+    this.worldZ = cz * CHUNK_SIZE;
+    this.group = new THREE.Group();
+    this.group.position.set(this.worldX, -16, this.worldZ); // starts deep underground for building animation
+    this.targetY = 0;
+    this.spawnProgress = 0; // 0 to 1 for step-by-step building animation
+    this.isBuilt = false;
+    this.flowers = [];
+    this.hazards = [];
+
+    this.generateTerrain();
+    worldRoot.add(this.group);
+  }
+
+  generateTerrain() {
+    const half = CHUNK_SIZE / 2;
+    const step = 2;
+    const isOrigin = this.cx === 0 && this.cz === 0;
+
+    let hasWater = false;
+
+    for (let lx = -half + 1; lx <= half - 1; lx += step) {
+      for (let lz = -half + 1; lz <= half - 1; lz += step) {
+        const wx = this.worldX + lx;
+        const wz = this.worldZ + lz;
+        const riverX = getRiverOffset(wz);
+        const riverDist = Math.abs(wx - riverX);
+        const isRiver = riverDist < 5.6;
+        const isBank = !isRiver && riverDist < 7.8;
+        const elev = isRiver ? -1.45 : getTerrainElevation(wx, wz);
+
+        if (isRiver) hasWater = true;
+
+        let blockMat = isRiver ? materials.dirt : isBank ? materials.sand : materials.grass;
+        if (!isRiver && !isBank) {
+          if (elev > 2.8) blockMat = materials.stone;
+          else if (elev > 0.8) blockMat = materials.grassHigh;
+          else if ((Math.abs(Math.floor(wx / 2)) + Math.abs(Math.floor(wz / 2))) % 3 === 0) blockMat = materials.grassAlt;
+        }
+
+        // Top voxel block
+        const block = new THREE.Mesh(blockGeo, blockMat);
+        block.position.set(lx, elev - 0.5, lz);
+        block.receiveShadow = true;
+        this.group.add(block);
+        groundRaycastMeshes.push(block);
+
+        // Sub-surface strata if elevated
+        if (elev > 0.7) {
+          const subBlock = new THREE.Mesh(blockGeoTall, materials.dirt);
+          subBlock.position.set(lx, elev - 1.8, lz);
+          subBlock.receiveShadow = true;
+          this.group.add(subBlock);
+        }
       }
+    }
 
-      // Top block
-      addBlock(x, height / 2, z, step, Math.max(1, height + 2), step, material, false, true, true);
+    // River Water plane for chunk if river passes through
+    if (hasWater) {
+      const water = new THREE.Mesh(new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE), materials.water);
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(0, -0.68, 0);
+      this.group.add(water);
+    }
 
-      // Dirt / Stone under-layer for cliff cuts
-      if (height > 0.8) {
-        addBlock(x, (height - 1.6) / 2, z, step, 1.6, step, materials.dirt, false, true, true);
-      }
+    // Procedural Flora & Features
+    if (isOrigin) {
+      this.buildHomesteadAndHive();
+    } else {
+      this.buildProceduralFeatures();
     }
   }
 
-  // Continuous River Water Mesh
-  const waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(16, 92, 16, 40), materials.water);
-  waterMesh.rotation.x = -Math.PI / 2;
-  waterMesh.position.set(2, -0.65, 0);
-  scene.add(waterMesh);
-}
+  buildProceduralFeatures() {
+    const seed = hash2D(this.cx, this.cz);
+    const biome = getBiomeAt(this.worldX, this.worldZ);
 
-// Build Trees
-function buildTree(x, z, type = 'oak', scale = 1) {
-  const groundY = getTerrainHeight(x, z);
-  const trunkHeight = (type === 'birch' ? 6 : 4.5) * scale;
-  const trunkMat = type === 'birch' ? materials.woodBirch : materials.woodOak;
+    // Tree generation
+    const treeCount = biome === 'Dense Forest' ? 2 + Math.floor(seed * 3) : biome === 'Lush Meadow' ? (seed > 0.6 ? 1 : 0) : (seed > 0.8 ? 1 : 0);
+    for (let t = 0; t < treeCount; t++) {
+      const tx = (hash2D(this.cx * 3 + t, this.cz * 7) - 0.5) * (CHUNK_SIZE - 6);
+      const tz = (hash2D(this.cx * 5 + t, this.cz * 11) - 0.5) * (CHUNK_SIZE - 6);
+      const wx = this.worldX + tx;
+      const wz = this.worldZ + tz;
 
-  // Trunk
-  addBlock(x, groundY + trunkHeight / 2, z, 1.2 * scale, trunkHeight, 1.2 * scale, trunkMat);
+      if (Math.abs(wx - getRiverOffset(wz)) > 6.5) {
+        const type = hash2D(wx, wz) > 0.5 ? 'birch' : 'oak';
+        this.addTree(tx, tz, type, 0.9 + hash2D(tz, wx) * 0.35);
+      }
+    }
 
-  // Canopy
-  const leafMat1 = type === 'birch' ? materials.leafBirch : materials.leafOak1;
-  const leafMat2 = type === 'birch' ? materials.leafBirch : materials.leafOak2;
-  const leafMat3 = type === 'birch' ? materials.leafOak3 : materials.leafOak3;
+    // Flower generation
+    const flowerCount = biome === 'Lush Meadow' ? 2 + Math.floor(seed * 4) : 1 + Math.floor(seed * 2);
+    for (let f = 0; f < flowerCount; f++) {
+      const fx = (hash2D(this.cx * 9 + f, this.cz * 13) - 0.5) * (CHUNK_SIZE - 4);
+      const fz = (hash2D(this.cx * 15 + f, this.cz * 17) - 0.5) * (CHUNK_SIZE - 4);
+      const wx = this.worldX + fx;
+      const wz = this.worldZ + fz;
 
-  const crownBase = groundY + trunkHeight - 1;
-  const radius = (type === 'birch' ? 2 : 2.5) * scale;
+      if (Math.abs(wx - getRiverOffset(wz)) > 6.0) {
+        this.addFlower(fx, fz);
+      }
+    }
 
-  for (let ix = -2; ix <= 2; ix++) {
-    for (let iz = -2; iz <= 2; iz++) {
-      for (let iy = 0; iy <= 3; iy++) {
-        const d = Math.abs(ix) + Math.abs(iz) + iy * 0.8;
-        if (d <= radius * 1.6) {
-          const lMat = [leafMat1, leafMat2, leafMat3][Math.abs(ix * 3 + iz * 2 + iy) % 3];
-          addBlock(
-            x + ix * 1.35 * scale,
-            crownBase + iy * 1.25 * scale,
-            z + iz * 1.35 * scale,
-            1.4 * scale,
-            1.3 * scale,
-            1.4 * scale,
-            lMat
-          );
+    // Occasional Hazard Spike (Thorny briar)
+    if (seed > 0.82) {
+      const hx = (hash2D(this.cx * 21, this.cz * 23) - 0.5) * (CHUNK_SIZE - 6);
+      const hz = (hash2D(this.cx * 27, this.cz * 29) - 0.5) * (CHUNK_SIZE - 6);
+      this.addHazard(hx, hz);
+    }
+  }
+
+  addTree(lx, lz, type = 'oak', scale = 1.0) {
+    const wx = this.worldX + lx;
+    const wz = this.worldZ + lz;
+    const groundY = getTerrainElevation(wx, wz);
+    const trunkHeight = (type === 'birch' ? 5.5 : 4.2) * scale;
+    const trunkMat = type === 'birch' ? materials.woodBirch : materials.woodOak;
+
+    // Trunk
+    const trunk = new THREE.Mesh(new THREE.BoxGeometry(1.2 * scale, trunkHeight, 1.2 * scale), trunkMat);
+    trunk.position.set(lx, groundY + trunkHeight / 2, lz);
+    trunk.castShadow = true;
+    trunk.receiveShadow = true;
+    this.group.add(trunk);
+
+    // Canopy
+    const leafMat = type === 'birch' ? materials.leafBirch : materials.leafOak1;
+    const crownBase = groundY + trunkHeight - 0.8;
+    for (let ix = -2; ix <= 2; ix++) {
+      for (let iz = -2; iz <= 2; iz++) {
+        for (let iy = 0; iy <= 2; iy++) {
+          if (Math.abs(ix) + Math.abs(iz) + iy * 0.9 <= 3.2 * scale) {
+            const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.35 * scale, 1.2 * scale, 1.35 * scale), leafMat);
+            leaf.position.set(lx + ix * 1.25 * scale, crownBase + iy * 1.15 * scale, lz + iz * 1.25 * scale);
+            leaf.castShadow = true;
+            leaf.receiveShadow = true;
+            this.group.add(leaf);
+          }
         }
       }
     }
   }
-}
 
-// Build Beekeeper Homestead & Hive Apiary
-function buildHomestead(x, z) {
-  const groundY = getTerrainHeight(x, z);
+  addFlower(lx, lz, species = null) {
+    const wx = this.worldX + lx;
+    const wz = this.worldZ + lz;
+    const groundY = getTerrainElevation(wx, wz);
 
-  // Cottage Foundation & Plank Walls
-  for (let ix = -2; ix <= 2; ix++) {
-    for (let iz = -2; iz <= 2; iz++) {
-      const isCorner = Math.abs(ix) === 2 && Math.abs(iz) === 2;
-      const isWall = Math.abs(ix) === 2 || Math.abs(iz) === 2;
-      if (isWall) {
-        addBlock(x + ix * 1.4, groundY + 1.6, z + iz * 1.4, 1.4, 3.2, 1.4, isCorner ? materials.woodOak : materials.woodPlank);
-      }
-    }
-  }
+    const speciesList = [
+      { name: 'Poppy', mat: materials.flowerRed, size: 0.85 },
+      { name: 'Dandelion', mat: materials.flowerYellow, size: 0.8 },
+      { name: 'Lavender', mat: materials.flowerPurple, size: 0.9 },
+      { name: 'Bluebell', mat: materials.flowerBlue, size: 0.85 },
+      { name: 'Sunflower', mat: materials.flowerYellow, size: 1.05 }
+    ];
 
-  // Cottage Gabled Roof
-  for (let level = 0; level < 3; level++) {
-    for (let i = -3 + level; i <= 3 - level; i++) {
-      addBlock(x + i * 1.4, groundY + 3.4 + level * 0.9, z - 2.8 + level * 0.6, 1.45, 0.9, 1.3, materials.roof);
-      addBlock(x + i * 1.4, groundY + 3.4 + level * 0.9, z + 2.8 - level * 0.6, 1.45, 0.9, 1.3, materials.roof);
-    }
-  }
+    const spec = species || speciesList[Math.floor(hash2D(wx * 2.3, wz * 4.1) * speciesList.length)];
+    const flowerGroup = new THREE.Group();
 
-  // Stone Chimney
-  for (let cy = 0; cy < 6; cy++) {
-    addBlock(x + 2.8, groundY + 0.8 + cy * 0.9, z + 0.5, 1.2, 0.9, 1.2, cy % 2 === 0 ? materials.chimney : materials.stoneDark);
-  }
+    // Stem
+    const stem = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2 * spec.size, 0.12), materials.stem);
+    stem.position.y = (1.2 * spec.size) / 2;
+    flowerGroup.add(stem);
 
-  // Cottage Door
-  addBlock(x, groundY + 1.0, z - 2.9, 1.1, 2.0, 0.25, materials.woodDark);
+    // Petals
+    const petals = new THREE.Mesh(new THREE.BoxGeometry(0.65 * spec.size, 0.28 * spec.size, 0.65 * spec.size), spec.mat);
+    petals.position.y = 1.15 * spec.size;
+    flowerGroup.add(petals);
 
-  // Apiary Fences
-  for (let fz = -4; fz <= 4; fz += 2) {
-    addBlock(x - 5.5, groundY + 0.6, z + fz, 0.25, 1.2, 0.25, materials.woodPlank);
-    if (fz < 4) addBlock(x - 5.5, groundY + 0.6, z + fz + 1, 0.15, 0.3, 1.8, materials.woodPlank);
-  }
-}
+    // Nectar Core
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.28 * spec.size, 0.35 * spec.size, 0.28 * spec.size), materials.flowerYellow);
+    core.position.y = 1.2 * spec.size;
+    flowerGroup.add(core);
 
-// Build Beehive Box
-function buildBeehive(x, z) {
-  const groundY = getTerrainHeight(x, z);
-  // Hive stilts
-  addBlock(x - 0.7, groundY + 0.4, z - 0.6, 0.2, 0.8, 0.2, materials.woodDark);
-  addBlock(x + 0.7, groundY + 0.4, z - 0.6, 0.2, 0.8, 0.2, materials.woodDark);
-  addBlock(x - 0.7, groundY + 0.4, z + 0.6, 0.2, 0.8, 0.2, materials.woodDark);
-  addBlock(x + 0.7, groundY + 0.4, z + 0.6, 0.2, 0.8, 0.2, materials.woodDark);
-
-  // Stacked Brood Boxes
-  for (let i = 0; i < 3; i++) {
-    addBlock(x, groundY + 1.0 + i * 0.75, z, 2.1 - i * 0.15, 0.7, 1.8 - i * 0.12, materials.hiveBox);
-    addBlock(x, groundY + 1.35 + i * 0.75, z, 2.15 - i * 0.15, 0.1, 1.85 - i * 0.12, materials.hiveStrip);
-  }
-
-  // Hive landing board & entrance slot
-  addBlock(x, groundY + 0.85, z + 1.05, 1.4, 0.15, 0.5, materials.woodPlank);
-  addBlock(x, groundY + 1.0, z + 0.95, 0.9, 0.2, 0.1, materials.woodDark);
-
-  // Warm glowing hive entrance light
-  const hivePointLight = new THREE.PointLight('#ffb732', 1.8, 8);
-  hivePointLight.position.set(x, groundY + 1.6, z + 1.2);
-  scene.add(hivePointLight);
-
-  return new THREE.Vector3(x, groundY + 2.2, z + 1.2);
-}
-
-// Build Voxel Clouds
-const cloudsGroup = new THREE.Group();
-function buildClouds() {
-  const cloudCount = 8;
-  for (let c = 0; c < cloudCount; c++) {
-    const cloud = new THREE.Group();
-    const cx = (Math.random() - 0.5) * 140;
-    const cz = (Math.random() - 0.5) * 140;
-    const cy = 34 + Math.random() * 8;
-    const clen = 4 + Math.floor(Math.random() * 5);
-    const cwid = 3 + Math.floor(Math.random() * 4);
-
-    for (let x = 0; x < clen; x++) {
-      for (let z = 0; z < cwid; z++) {
-        if (Math.random() > 0.25) {
-          const b = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.8, 4.2), materials.cloud);
-          b.position.set(x * 3.8, 0, z * 3.8);
-          cloud.add(b);
-        }
-      }
-    }
-    cloud.position.set(cx, cy, cz);
-    cloudsGroup.add(cloud);
-  }
-  scene.add(cloudsGroup);
-}
-
-// Build Ambient Pollen Particles
-let pollenParticles;
-function buildPollenParticles() {
-  const count = 350;
-  const geom = new THREE.BufferGeometry();
-  const positions = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 80;
-    positions[i * 3 + 1] = 0.5 + Math.random() * 9;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 80;
-  }
-  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({
-    color: '#ffe27a',
-    size: 0.22,
-    transparent: true,
-    opacity: 0.75,
-    blending: THREE.AdditiveBlending
-  });
-  pollenParticles = new THREE.Points(geom, mat);
-  scene.add(pollenParticles);
-}
-
-// ==========================================
-// 5. FLOWER GENERATOR & REGISTRY
-// ==========================================
-const flowers = [];
-let flowerIdCounter = 1;
-
-function createFlower(x, z, species = null) {
-  const groundY = getTerrainHeight(x, z);
-  const speciesList = [
-    { name: 'Poppy', mat: materials.flowerRed, colorHex: '#e63946', size: 0.8 },
-    { name: 'Dandelion', mat: materials.flowerYellow, colorHex: '#ffc300', size: 0.75 },
-    { name: 'Lavender', mat: materials.flowerPurple, colorHex: '#9d4edd', size: 0.9 },
-    { name: 'Bluebell', mat: materials.flowerBlue, colorHex: '#3a86ff', size: 0.8 },
-    { name: 'Blossom', mat: materials.flowerPink, colorHex: '#ff70a6', size: 0.85 }
-  ];
-
-  const spec = species || speciesList[Math.floor(Math.random() * speciesList.length)];
-  const flowerGroup = new THREE.Group();
-
-  // Stem
-  const stem = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2 * spec.size, 0.12), materials.stem);
-  stem.position.y = (1.2 * spec.size) / 2;
-  flowerGroup.add(stem);
-
-  // Petals (Voxel Cross Pattern)
-  const petalCenter = new THREE.Mesh(new THREE.BoxGeometry(0.65 * spec.size, 0.3 * spec.size, 0.65 * spec.size), spec.mat);
-  petalCenter.position.y = 1.15 * spec.size;
-  flowerGroup.add(petalCenter);
-
-  // Golden Nectar Core
-  const core = new THREE.Mesh(new THREE.BoxGeometry(0.28 * spec.size, 0.36 * spec.size, 0.28 * spec.size), materials.flowerYellow);
-  core.position.y = 1.2 * spec.size;
-  flowerGroup.add(core);
-
-  // Soft sparkle beacon mesh
-  const beacon = new THREE.Mesh(
-    new THREE.SphereGeometry(0.18, 6, 6),
-    new THREE.MeshBasicMaterial({ color: '#ffea75', transparent: true, opacity: 0.9 })
-  );
-  beacon.position.y = 1.6 * spec.size;
-  flowerGroup.add(beacon);
-
-  flowerGroup.position.set(x, groundY, z);
-  scene.add(flowerGroup);
-
-  const flowerData = {
-    id: flowerIdCounter++,
-    name: spec.name,
-    position: new THREE.Vector3(x, groundY + 1.2 * spec.size, z),
-    group: flowerGroup,
-    beacon: beacon,
-    active: true,
-    nectarValue: 1
-  };
-
-  flowers.push(flowerData);
-  return flowerData;
-}
-
-// Build Hazards
-const hazards = [];
-function createHazard(x, z) {
-  const groundY = getTerrainHeight(x, z);
-  const spikeGroup = new THREE.Group();
-  for (let i = 0; i < 4; i++) {
-    const s = addBlock(
-      (Math.random() - 0.5) * 0.8,
-      0.6 + i * 0.2,
-      (Math.random() - 0.5) * 0.8,
-      0.5,
-      1.1,
-      0.5,
-      materials.hazard
+    // Glowing Beacon
+    const beacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.16, 6, 6),
+      new THREE.MeshBasicMaterial({ color: '#ffea75', transparent: true, opacity: 0.9 })
     );
-    s.rotation.set(Math.random() * 0.3, Math.random() * 3, Math.random() * 0.3);
-    spikeGroup.add(s);
+    beacon.position.y = 1.65 * spec.size;
+    flowerGroup.add(beacon);
+
+    flowerGroup.position.set(lx, groundY, lz);
+    this.group.add(flowerGroup);
+
+    const flowerObj = {
+      id: Math.floor(Math.abs(wx * 1000 + wz)),
+      name: spec.name,
+      worldPos: new THREE.Vector3(wx, groundY + 1.2 * spec.size, wz),
+      group: flowerGroup,
+      beacon: beacon,
+      active: true
+    };
+
+    this.flowers.push(flowerObj);
+    activeFlowers.push(flowerObj);
   }
-  spikeGroup.position.set(x, groundY, z);
-  scene.add(spikeGroup);
-  hazards.push(new THREE.Vector3(x, groundY + 0.8, z));
+
+  addHazard(lx, lz) {
+    const wx = this.worldX + lx;
+    const wz = this.worldZ + lz;
+    const groundY = getTerrainElevation(wx, wz);
+    const spike = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.8), materials.hazard);
+    spike.position.set(lx, groundY + 0.6, lz);
+    spike.rotation.y = 0.6;
+    this.group.add(spike);
+
+    const hazPos = new THREE.Vector3(wx, groundY + 0.6, wz);
+    this.hazards.push(hazPos);
+    activeHazards.push(hazPos);
+  }
+
+  buildHomesteadAndHive() {
+    const groundY = getTerrainElevation(0, 0);
+
+    // Beekeeper Cottage
+    for (let ix = -2; ix <= 2; ix++) {
+      for (let iz = -2; iz <= 2; iz++) {
+        const isWall = Math.abs(ix) === 2 || Math.abs(iz) === 2;
+        if (isWall) {
+          const w = new THREE.Mesh(new THREE.BoxGeometry(1.4, 3.2, 1.4), materials.woodPlank);
+          w.position.set(ix * 1.4, groundY + 1.6, iz * 1.4 - 4);
+          w.castShadow = true;
+          this.group.add(w);
+        }
+      }
+    }
+
+    // Cottage Roof
+    for (let level = 0; level < 3; level++) {
+      for (let i = -3 + level; i <= 3 - level; i++) {
+        const r1 = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.9, 1.3), materials.roof);
+        r1.position.set(i * 1.4, groundY + 3.4 + level * 0.9, -6.8 + level * 0.6);
+        this.group.add(r1);
+
+        const r2 = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.9, 1.3), materials.roof);
+        r2.position.set(i * 1.4, groundY + 3.4 + level * 0.9, -1.2 - level * 0.6);
+        this.group.add(r2);
+      }
+    }
+
+    // Stone Chimney
+    for (let cy = 0; cy < 5; cy++) {
+      const chim = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), cy % 2 ? materials.chimney : materials.stoneDark);
+      chim.position.set(2.8, groundY + 0.8 + cy * 0.9, -3.5);
+      this.group.add(chim);
+    }
+
+    // Master Hive on Stilts
+    [-0.7, 0.7].forEach(hx => {
+      [-0.6, 0.6].forEach(hz => {
+        const stilt = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.2), materials.woodDark);
+        stilt.position.set(hx - 5, groundY + 0.4, hz + 3);
+        this.group.add(stilt);
+      });
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(2.1 - i * 0.15, 0.7, 1.8 - i * 0.12), materials.hiveBox);
+      box.position.set(-5, groundY + 1.0 + i * 0.75, 3);
+      this.group.add(box);
+    }
+
+    // Hive Landing Board
+    const board = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 0.5), materials.woodPlank);
+    board.position.set(-5, groundY + 0.85, 4.05);
+    this.group.add(board);
+
+    // Initial Meadow Flowers around Home
+    [[-3, 6], [-7, 2], [-2, 1], [-8, 7]].forEach(([fx, fz]) => this.addFlower(fx, fz));
+  }
+
+  updateAnimation(dt) {
+    if (this.isBuilt) return;
+
+    this.spawnProgress += dt * 2.8; // ~0.35s build up
+    if (this.spawnProgress >= 1.0) {
+      this.spawnProgress = 1.0;
+      this.group.position.y = this.targetY;
+      this.isBuilt = true;
+    } else {
+      // Minecraft rising from below with smooth ease-out spring
+      const t = this.spawnProgress;
+      const ease = 1 - Math.pow(1 - t, 3);
+      this.group.position.y = -16 * (1 - ease);
+    }
+  }
+
+  dispose() {
+    // Remove flowers from active pool
+    this.flowers.forEach(f => {
+      const idx = activeFlowers.indexOf(f);
+      if (idx !== -1) activeFlowers.splice(idx, 1);
+    });
+
+    // Remove hazards
+    this.hazards.forEach(h => {
+      const idx = activeHazards.indexOf(h);
+      if (idx !== -1) activeHazards.splice(idx, 1);
+    });
+
+    // Remove raycast ground meshes
+    this.group.traverse(obj => {
+      const rIdx = groundRaycastMeshes.indexOf(obj);
+      if (rIdx !== -1) groundRaycastMeshes.splice(rIdx, 1);
+    });
+
+    worldRoot.remove(this.group);
+  }
+}
+
+// Master Hive Origin Position
+const hivePosition = new THREE.Vector3(-5, getTerrainElevation(0, 0) + 2.2, 3);
+
+// Dynamic Chunk Streamer
+function updateWorldChunks(targetX, targetZ, dt) {
+  const centerCx = Math.floor((targetX + CHUNK_SIZE / 2) / CHUNK_SIZE);
+  const centerCz = Math.floor((targetZ + CHUNK_SIZE / 2) / CHUNK_SIZE);
+
+  const neededKeys = new Set();
+
+  // Load / Spawn chunks within render distance
+  for (let dx = -RENDER_RADIUS; dx <= RENDER_RADIUS; dx++) {
+    for (let dz = -RENDER_RADIUS; dz <= RENDER_RADIUS; dz++) {
+      const cx = centerCx + dx;
+      const cz = centerCz + dz;
+      const key = `${cx},${cz}`;
+      neededKeys.add(key);
+
+      if (!loadedChunks.has(key)) {
+        const chunk = new VoxelChunk(cx, cz);
+        loadedChunks.set(key, chunk);
+      }
+    }
+  }
+
+  // Update chunk animations & cull distant chunks
+  for (const [key, chunk] of loadedChunks.entries()) {
+    chunk.updateAnimation(dt);
+
+    if (!neededKeys.has(key)) {
+      // Chunk is beyond render horizon -> recycle
+      chunk.dispose();
+      loadedChunks.delete(key);
+    }
+  }
 }
 
 // ==========================================
-// 6. DETAILED VOXEL BEE MODEL
+// 6. DETAILED 3D VOXEL BEE AGENT
 // ==========================================
 function buildBee() {
   const bee = new THREE.Group();
 
-  // Materials for Bee
   const beeYellow = mat('#ffc72c');
   const beeBlack = mat('#29190d');
   const beeDark = mat('#140b05');
@@ -428,17 +538,16 @@ function buildBee() {
   });
   const pollenMat = new THREE.MeshLambertMaterial({ color: '#ffb703' });
 
-  // Thorax (Center)
+  // Thorax
   const thorax = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.05, 1.1), beeYellow);
   thorax.position.set(0.2, 0, 0);
   bee.add(thorax);
 
-  // Abdomen with Striped Plates
+  // Abdomen
   const abdomen = new THREE.Group();
   abdomen.position.set(1.4, 0, 0);
 
   const ab1 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.0, 1.02), beeBlack);
-  ab1.position.x = 0.0;
   abdomen.add(ab1);
 
   const ab2 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.95, 0.98), beeYellow);
@@ -468,26 +577,16 @@ function buildBee() {
     bee.add(eye);
   });
 
-  // Antennae
-  [-0.22, 0.22].forEach(z => {
-    const antStem = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), beeDark);
-    antStem.position.set(-1.08, 0.45, z);
-    antStem.rotation.z = -0.35;
-    bee.add(antStem);
-  });
-
-  // Wings (Left & Right)
+  // Wings
   const leftWing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.85), wingMat);
   leftWing.position.set(0.1, 0.55, -0.75);
-  leftWing.name = 'leftWing';
   bee.add(leftWing);
 
   const rightWing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.85), wingMat);
   rightWing.position.set(0.1, 0.55, 0.75);
-  rightWing.name = 'rightWing';
   bee.add(rightWing);
 
-  // Corbiculae (Pollen Baskets on hind legs)
+  // Pollen Baskets (Corbiculae)
   const pollenBaskets = [];
   [-0.45, 0.45].forEach(z => {
     const basket = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.28), pollenMat);
@@ -509,52 +608,38 @@ function buildBee() {
   return { bee, leftWing, rightWing, pollenBaskets, abdomen };
 }
 
-// ==========================================
-// 7. ASSEMBLE WORLD SCENERY
-// ==========================================
-buildTerrain();
-
-// Trees (Oaks & Birches along banks and meadow)
-buildTree(-22, -20, 'oak', 1.35);
-buildTree(-26, 14, 'birch', 1.2);
-buildTree(16, -14, 'oak', 1.15);
-buildTree(20, 18, 'birch', 1.25);
-buildTree(-12, 22, 'oak', 0.95);
-buildTree(28, -6, 'oak', 1.1);
-buildTree(-28, -4, 'birch', 1.1);
-buildTree(12, 26, 'oak', 1.05);
-
-// Homestead & Hives
-buildHomestead(18, -4);
-const hivePosition = buildBeehive(-8, 12);
-
-// Initial Flower Field
-const initialFlowerCoords = [
-  [-4, 4], [-13, -2], [-17, 10], [9, 8], [14, 16],
-  [-22, 2], [22, -1], [-7, -16], [24, 9], [-2, -10],
-  [5, -20], [-18, -12], [11, -8], [-10, 6]
-];
-initialFlowerCoords.forEach(([x, z]) => createFlower(x, z));
-
-// Hazards
-createHazard(-2, 14);
-createHazard(11, -2);
-createHazard(-14, -8);
-
-// Clouds & Atmosphere
-buildClouds();
-buildPollenParticles();
-
-// Bee Instance
 const { bee: beeMesh, leftWing, rightWing, pollenBaskets, abdomen } = buildBee();
 
+// Drifting Clouds
+const cloudsGroup = new THREE.Group();
+function buildClouds() {
+  for (let c = 0; c < 12; c++) {
+    const cloud = new THREE.Group();
+    const clen = 4 + Math.floor(Math.random() * 5);
+    const cwid = 3 + Math.floor(Math.random() * 4);
+    for (let x = 0; x < clen; x++) {
+      for (let z = 0; z < cwid; z++) {
+        if (Math.random() > 0.25) {
+          const b = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.0, 4.5), materials.cloud);
+          b.position.set(x * 4.0, 0, z * 4.0);
+          cloud.add(b);
+        }
+      }
+    }
+    cloud.position.set((Math.random() - 0.5) * 160, 36 + Math.random() * 8, (Math.random() - 0.5) * 160);
+    cloudsGroup.add(cloud);
+  }
+  scene.add(cloudsGroup);
+}
+buildClouds();
+
 // ==========================================
-// 8. SIMULATION STATE & AGENT CONTROLLER
+// 7. SIMULATION & FORAGING CONTROLLER
 // ==========================================
 const simState = {
   paused: false,
   speed: 1.0,
-  cameraMode: 'chase', // 'chase' | 'pov' | 'orbit'
+  cameraMode: 'chase',
   timeOfDay: 'noon',
   visitedCount: 0,
   deliveredCount: 0
@@ -566,21 +651,17 @@ const beeBrain = {
   heading: new THREE.Vector3(1, 0, 0),
   nectar: 0,
   maxNectar: 3,
-  mode: 'exploring', // 'exploring' | 'foraging' | 'returning'
+  mode: 'exploring',
   target: null,
   flightTime: 0,
-  speedScalar: 5.4,
+  speedScalar: 5.6,
   homeVector: new THREE.Vector3()
 };
 
-function getActiveFlowers() {
-  return flowers.filter(f => f.active);
-}
-
-function findBestFlower() {
-  const active = getActiveFlowers();
+function findNearestActiveFlower() {
+  const active = activeFlowers.filter(f => f.active);
   if (active.length === 0) return null;
-  return active.sort((a, b) => beeBrain.position.distanceToSquared(a.position) - beeBrain.position.distanceToSquared(b.position))[0];
+  return active.sort((a, b) => beeBrain.position.distanceToSquared(a.worldPos) - beeBrain.position.distanceToSquared(b.worldPos))[0];
 }
 
 function setObjective(text) {
@@ -588,67 +669,59 @@ function setObjective(text) {
   if (el) el.textContent = text;
 }
 
-// Controller update loop (Path integration & state machine)
+// Controller update loop
 function updateBee(dt) {
-  // Update Home Vector (vector from current pos to hive)
   beeBrain.homeVector.subVectors(hivePosition, beeBrain.position);
 
-  // State Machine logic
-  const targetFlower = findBestFlower();
+  const nearestFlower = findNearestActiveFlower();
 
-  if (beeBrain.nectar >= beeBrain.maxNectar || (!targetFlower && beeBrain.nectar > 0)) {
-    // Return home when capacity full
+  if (beeBrain.nectar >= beeBrain.maxNectar || (!nearestFlower && beeBrain.nectar > 0)) {
     beeBrain.mode = 'returning';
-    beeBrain.target = { position: hivePosition, name: 'Beehive', type: 'hive' };
-  } else if (targetFlower) {
-    // Forage nearest flower
+    beeBrain.target = { position: hivePosition, name: 'Home Hive', type: 'hive' };
+  } else if (nearestFlower) {
     beeBrain.mode = 'foraging';
-    beeBrain.target = { position: targetFlower.position, name: `${targetFlower.name} #${targetFlower.id}`, flower: targetFlower, type: 'flower' };
+    beeBrain.target = { position: nearestFlower.worldPos, name: `${nearestFlower.name} #${nearestFlower.id}`, flower: nearestFlower, type: 'flower' };
   } else {
-    // Explore / patrol meadow
     beeBrain.mode = 'exploring';
     beeBrain.target = null;
   }
 
-  // Steering calculation
   let desired = new THREE.Vector3();
   if (beeBrain.target) {
     desired.subVectors(beeBrain.target.position, beeBrain.position);
   } else {
-    // Smooth wandering Lissajous path
+    // Wander into new procedural frontier
     desired.set(
-      Math.cos(beeBrain.flightTime * 0.22) * 8 + Math.sin(beeBrain.flightTime * 0.08) * 4,
+      Math.cos(beeBrain.flightTime * 0.18) * 8 + Math.sin(beeBrain.flightTime * 0.06) * 6,
       0,
-      Math.sin(beeBrain.flightTime * 0.17) * 8 + Math.cos(beeBrain.flightTime * 0.09) * 4
+      Math.sin(beeBrain.flightTime * 0.14) * 8 + Math.cos(beeBrain.flightTime * 0.08) * 6
     );
   }
 
-  // Hazard / obstacle avoidance
-  hazards.forEach(h => {
+  // Hazard avoidance
+  activeHazards.forEach(h => {
     const diff = beeBrain.position.clone().sub(h);
     const dist = diff.length();
     if (dist < 6.0) {
-      desired.add(diff.normalize().multiplyScalar((6.0 - dist) * 3.2));
+      desired.add(diff.normalize().multiplyScalar((6.0 - dist) * 3.4));
     }
   });
 
   desired.y = 0;
   desired.normalize();
 
-  // Smooth heading interpolation & bank
   const turnRate = 0.045 * dt * 60;
   beeBrain.heading.lerp(desired, turnRate).normalize();
   beeBrain.velocity.lerp(beeBrain.heading.clone().multiplyScalar(beeBrain.speedScalar * simState.speed), turnRate);
 
-  // Position integration
   beeBrain.position.addScaledVector(beeBrain.velocity, dt);
 
-  // Flight hover altitude (stay above terrain with gentle bobbing)
-  const terrainHeight = getTerrainHeight(beeBrain.position.x, beeBrain.position.z);
-  const targetAltitude = Math.max(terrainHeight + 2.0, 2.6) + Math.sin(beeBrain.flightTime * 3.0) * 0.32;
+  // Maintain flight hover altitude above continuous procedural terrain
+  const groundElevation = getTerrainElevation(beeBrain.position.x, beeBrain.position.z);
+  const targetAltitude = Math.max(groundElevation + 2.1, 2.6) + Math.sin(beeBrain.flightTime * 3.0) * 0.32;
   beeBrain.position.y = THREE.MathUtils.lerp(beeBrain.position.y, targetAltitude, 0.06 * dt * 60);
 
-  // Interaction check (Arrived at target)
+  // Target arrival check
   if (beeBrain.target && beeBrain.position.distanceTo(beeBrain.target.position) < 1.35) {
     if (beeBrain.mode === 'foraging' && beeBrain.target.flower) {
       beeBrain.target.flower.active = false;
@@ -659,7 +732,7 @@ function updateBee(dt) {
     } else if (beeBrain.mode === 'returning') {
       simState.deliveredCount += beeBrain.nectar;
       beeBrain.nectar = 0;
-      setObjective('🍯 Nectar safely deposited at the hive. Resuming meadow forage.');
+      setObjective('🍯 Nectar safely deposited at origin hive! Exploring new chunks…');
     }
     beeBrain.target = null;
   }
@@ -668,16 +741,16 @@ function updateBee(dt) {
 
   // Sync 3D Mesh
   beeMesh.position.copy(beeBrain.position);
-  beeMesh.rotation.y = Math.atan2(beeBrain.heading.z, beeBrain.heading.x) - Math.PI; // Face forward in flight
-  beeMesh.rotation.z = Math.sin(beeBrain.flightTime * 3.5) * 0.07; // subtle roll
+  beeMesh.rotation.y = Math.atan2(beeBrain.heading.z, beeBrain.heading.x) - Math.PI;
+  beeMesh.rotation.z = Math.sin(beeBrain.flightTime * 3.5) * 0.07;
   abdomen.rotation.y = Math.sin(beeBrain.flightTime * 4.0) * 0.08;
 
-  // Wing flapping animation
+  // Wing flapping
   const wingSpeed = 32 * simState.speed;
   leftWing.rotation.x = Math.sin(beeBrain.flightTime * wingSpeed) * 0.65;
   rightWing.rotation.x = -Math.sin(beeBrain.flightTime * wingSpeed) * 0.65;
 
-  // Corbiculae (Pollen Baskets) visibility when carrying nectar
+  // Pollen baskets
   const hasNectar = beeBrain.nectar > 0;
   pollenBaskets.forEach(b => {
     b.visible = hasNectar;
@@ -686,7 +759,7 @@ function updateBee(dt) {
 }
 
 // ==========================================
-// 9. MULTI-CAMERA SYSTEM
+// 8. MULTI-CAMERA SYSTEM
 // ==========================================
 let chaseInit = false;
 
@@ -695,12 +768,7 @@ function updateCamera(dt) {
     povOverlay.classList.remove('active');
     controls.enabled = false;
 
-    // Smooth 3rd person chase camera behind bee heading
-    const behindOffset = new THREE.Vector3(
-      -beeBrain.heading.x * 6.8,
-      3.2,
-      -beeBrain.heading.z * 6.8
-    );
+    const behindOffset = new THREE.Vector3(-beeBrain.heading.x * 7.0, 3.4, -beeBrain.heading.z * 7.0);
     const targetCamPos = beeBrain.position.clone().add(behindOffset);
 
     if (!chaseInit) {
@@ -716,7 +784,6 @@ function updateCamera(dt) {
     povOverlay.classList.add('active');
     controls.enabled = false;
 
-    // Bee eye first-person perspective
     const eyeOffset = new THREE.Vector3(beeBrain.heading.x * 0.8, 0.1, beeBrain.heading.z * 0.8);
     camera.position.copy(beeBrain.position.clone().add(eyeOffset));
     const lookTarget = beeBrain.position.clone().add(new THREE.Vector3(beeBrain.heading.x * 12, -0.5, beeBrain.heading.z * 12));
@@ -729,60 +796,67 @@ function updateCamera(dt) {
 }
 
 // ==========================================
-// 10. HUD & TELEMETRY UPDATES
+// 9. TELEMETRY & HUD
 // ==========================================
 function updateHUD() {
-  // Mode Badge
   const modeBadge = document.querySelector('#modeBadge');
   if (modeBadge) {
     modeBadge.className = `status-badge ${beeBrain.mode}`;
     modeBadge.textContent = beeBrain.mode.toUpperCase();
   }
 
-  // Home Vector Distance
+  const biome = getBiomeAt(beeBrain.position.x, beeBrain.position.z);
+  const biomeReadout = document.querySelector('#biomeReadout');
+  if (biomeReadout) biomeReadout.textContent = biome;
+
+  const worldTitle = document.querySelector('#worldTitle');
+  if (worldTitle) worldTitle.textContent = `${biome} Biome`;
+
   const homeDist = beeBrain.position.distanceTo(hivePosition).toFixed(1);
   const homeReadout = document.querySelector('#homeReadout');
   if (homeReadout) homeReadout.textContent = `${homeDist} m`;
 
-  // Target Readout
   const targetReadout = document.querySelector('#targetReadout');
   if (targetReadout) {
-    targetReadout.textContent = beeBrain.target ? beeBrain.target.name : 'Scanning meadow…';
+    targetReadout.textContent = beeBrain.target ? beeBrain.target.name : 'Exploring frontier…';
   }
 
-  // Altitude & Speed
   const altReadout = document.querySelector('#altReadout');
   if (altReadout) altReadout.textContent = `${beeBrain.position.y.toFixed(1)} m`;
 
   const speedStat = document.querySelector('#speedStatReadout');
   if (speedStat) speedStat.textContent = `${(beeBrain.velocity.length()).toFixed(1)} m/s`;
 
-  // Nectar Progress
   const nectarText = document.querySelector('#nectarText');
   if (nectarText) nectarText.textContent = `${beeBrain.nectar} / ${beeBrain.maxNectar}`;
 
   const nectarBar = document.querySelector('#nectarBar');
   if (nectarBar) {
-    const pct = (beeBrain.nectar / beeBrain.maxNectar) * 100;
-    nectarBar.style.width = `${pct}%`;
+    nectarBar.style.width = `${(beeBrain.nectar / beeBrain.maxNectar) * 100}%`;
   }
 
-  // Stats
   const visitedEl = document.querySelector('#visitedCount');
   if (visitedEl) visitedEl.textContent = simState.visitedCount;
 
   const deliveredEl = document.querySelector('#deliveredCount');
   if (deliveredEl) deliveredEl.textContent = simState.deliveredCount;
 
-  // Biome coordinates
+  const currentCx = Math.floor((beeBrain.position.x + CHUNK_SIZE / 2) / CHUNK_SIZE);
+  const currentCz = Math.floor((beeBrain.position.z + CHUNK_SIZE / 2) / CHUNK_SIZE);
+
   const coordsEl = document.querySelector('#biomeCoords');
   if (coordsEl) coordsEl.textContent = `X: ${Math.round(beeBrain.position.x)} | Z: ${Math.round(beeBrain.position.z)}`;
+
+  const chunkCoordsEl = document.querySelector('#chunkCoords');
+  if (chunkCoordsEl) chunkCoordsEl.textContent = `Chunk [${currentCx}, ${currentCz}]`;
+
+  const chunksCountEl = document.querySelector('#chunksCount');
+  if (chunksCountEl) chunksCountEl.textContent = `${loadedChunks.size} Chunks Active`;
 }
 
 // ==========================================
-// 11. USER INTERACTION & CONTROLS
+// 10. CONTROLS & INTERACTION
 // ==========================================
-// Camera Mode Buttons
 const camBtns = {
   chase: document.querySelector('#camChase'),
   pov: document.querySelector('#camPov'),
@@ -803,14 +877,13 @@ if (camBtns.chase) camBtns.chase.onclick = () => setCameraMode('chase');
 if (camBtns.pov) camBtns.pov.onclick = () => setCameraMode('pov');
 if (camBtns.orbit) camBtns.orbit.onclick = () => setCameraMode('orbit');
 
-// Time of Day Toggle
 const timeBtn = document.querySelector('#timeBtn');
 const timeLabel = document.querySelector('#timeLabel');
 const timeIcon = document.querySelector('#timeIcon');
 
 function setTimeOfDay(preset) {
   simState.timeOfDay = preset;
-  const cfg = skyColors[preset];
+  const cfg = skyPresets[preset];
   scene.background.set(cfg.sky);
   scene.fog.color.set(cfg.fog);
   hemiLight.color.set(cfg.hemiSky);
@@ -831,7 +904,6 @@ if (timeBtn) {
   };
 }
 
-// Play / Pause Toggle
 const toggleButton = document.querySelector('#toggleButton');
 if (toggleButton) {
   toggleButton.onclick = () => {
@@ -840,7 +912,6 @@ if (toggleButton) {
   };
 }
 
-// Reset Flight
 const resetButton = document.querySelector('#resetButton');
 if (resetButton) {
   resetButton.onclick = () => {
@@ -849,27 +920,29 @@ if (resetButton) {
     beeBrain.nectar = 0;
     beeBrain.target = null;
     chaseInit = false;
-    flowers.forEach(f => {
+    activeFlowers.forEach(f => {
       f.active = true;
       f.beacon.visible = true;
     });
-    setObjective('Flight reset at the hive entrance.');
+    setObjective('Flight reset at the origin hive entrance.');
   };
 }
 
-// Plant Flower Button
 const plantBtn = document.querySelector('#plantBtn');
 if (plantBtn) {
   plantBtn.onclick = () => {
-    // Spawn flower near the bee or random scenic spot
-    const rx = beeBrain.position.x + (Math.random() - 0.5) * 20;
-    const rz = beeBrain.position.z + (Math.random() - 0.5) * 20;
-    const fl = createFlower(rx, rz);
-    setObjective(`Planted a new ${fl.name} flower at [${Math.round(rx)}, ${Math.round(rz)}]!`);
+    const rx = beeBrain.position.x + (Math.random() - 0.5) * 16;
+    const rz = beeBrain.position.z + (Math.random() - 0.5) * 16;
+    const cx = Math.floor((rx + CHUNK_SIZE / 2) / CHUNK_SIZE);
+    const cz = Math.floor((rz + CHUNK_SIZE / 2) / CHUNK_SIZE);
+    const chunk = loadedChunks.get(`${cx},${cz}`);
+    if (chunk) {
+      chunk.addFlower(rx - chunk.worldX, rz - chunk.worldZ);
+      setObjective(`Planted a flower in chunk [${cx}, ${cz}]!`);
+    }
   };
 }
 
-// Speed range slider
 const speedRange = document.querySelector('#speedRange');
 const speedOutput = document.querySelector('#speedOutput');
 if (speedRange) {
@@ -879,24 +952,28 @@ if (speedRange) {
   };
 }
 
-// Click anywhere on terrain to plant flower via Raycasting
+// Click to plant flower
 canvas.addEventListener('click', e => {
-  if (simState.cameraMode === 'orbit') return; // let orbit controls drag freely
+  if (simState.cameraMode === 'orbit') return;
 
   const rect = canvas.getBoundingClientRect();
   mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(groundGroup.children);
+  const intersects = raycaster.intersectObjects(groundRaycastMeshes);
   if (intersects.length > 0) {
     const hit = intersects[0].point;
-    const fl = createFlower(hit.x, hit.z);
-    setObjective(`Planted a fresh ${fl.name} flower at [${Math.round(hit.x)}, ${Math.round(hit.z)}]!`);
+    const cx = Math.floor((hit.x + CHUNK_SIZE / 2) / CHUNK_SIZE);
+    const cz = Math.floor((hit.z + CHUNK_SIZE / 2) / CHUNK_SIZE);
+    const chunk = loadedChunks.get(`${cx},${cz}`);
+    if (chunk) {
+      chunk.addFlower(hit.x - chunk.worldX, hit.z - chunk.worldZ);
+      setObjective(`Planted a fresh flower at [${Math.round(hit.x)}, ${Math.round(hit.z)}]!`);
+    }
   }
 });
 
-// Window resize handler
 function onResize() {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
@@ -908,7 +985,7 @@ window.addEventListener('resize', onResize);
 onResize();
 
 // ==========================================
-// 12. MAIN ANIMATION LOOP
+// 11. MAIN ANIMATION & RENDERING LOOP
 // ==========================================
 let lastTime = performance.now();
 
@@ -922,28 +999,28 @@ function animate(currentTime) {
     updateBee(dt);
   }
 
-  // Animate drifting clouds
+  // Update dynamic chunk streaming around bee
+  updateWorldChunks(beeBrain.position.x, beeBrain.position.z, dt);
+
+  // Cloud drift relative to bee
+  cloudsGroup.position.x = beeBrain.position.x * 0.2;
+  cloudsGroup.position.z = beeBrain.position.z * 0.2;
   cloudsGroup.children.forEach(c => {
-    c.position.x += 1.2 * dt;
+    c.position.x += 1.1 * dt;
     if (c.position.x > 80) c.position.x = -80;
   });
 
-  // Animate hovering flower beacons
-  flowers.forEach(f => {
-    if (f.active) {
-      f.beacon.position.y = 1.6 + Math.sin(currentTime * 0.004 + f.id) * 0.12;
+  // Hovering flower beacon animation
+  activeFlowers.forEach(f => {
+    if (f.active && f.beacon) {
+      f.beacon.position.y = 1.65 + Math.sin(currentTime * 0.004 + f.id) * 0.12;
     }
   });
-
-  // Animate pollen particles
-  if (pollenParticles) {
-    pollenParticles.rotation.y += 0.04 * dt;
-  }
 
   updateCamera(dt);
   updateHUD();
   renderer.render(scene, camera);
 }
 
-setObjective('Bee entered the riverside meadow.');
+setObjective('Infinite procedural voxel world initialized.');
 requestAnimationFrame(animate);

@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BeeCX — 3D Voxel World & Central Complex Navigation</title>
-    <meta name="description" content="High-fidelity 3D voxel world simulation of a honeybee foraging with biological Central Complex path integration." />
+    <title>BeeCX — Infinite Minecraft-Style Procedural Voxel World</title>
+    <meta name="description" content="Infinite procedural voxel world simulation of a honeybee foraging with biological Central Complex path integration." />
     <link rel="stylesheet" href="styles.css" />
     <script type="importmap">
       {
@@ -18,7 +18,7 @@
   <body>
     <main id="gameShell">
       <!-- 3D WebGL Canvas -->
-      <canvas id="world" aria-label="A live 3D voxel world simulating a bee in a riverside meadow"></canvas>
+      <canvas id="world" aria-label="An infinite 3D procedural voxel world simulating a bee in a riverside biome"></canvas>
 
       <!-- Compound Eye Hexagonal POV Filter -->
       <div id="povOverlay" aria-hidden="true"></div>
@@ -26,13 +26,14 @@
       <!-- Top-Left Branding & Environment Telemetry -->
       <header class="hud top-left-hud">
         <div class="brand-badge">
-          <span class="logo-pill">BEE-CX v2</span>
+          <span class="logo-pill">BEE-CX INFINITE</span>
           <div class="environment-tag">
-            <span><i class="indicator-active"></i> 3D VOXEL BIOME</span>
+            <span><i class="indicator-active"></i> PROCEDURAL VOXEL STREAMING</span>
             <span id="biomeCoords">X: 0 | Z: 0</span>
+            <span id="chunkCoords">Chunk [0, 0]</span>
           </div>
         </div>
-        <h1>Riverside Meadow</h1>
+        <h1 id="worldTitle">Riverside Biome</h1>
       </header>
 
       <!-- Top-Right Camera Modes & Lighting Selector -->
@@ -61,8 +62,16 @@
         </div>
         <dl class="telemetry-list">
           <div class="telemetry-row">
+            <dt>Biome</dt>
+            <dd id="biomeReadout">Lush Meadow</dd>
+          </div>
+          <div class="telemetry-row">
             <dt>Home Vector</dt>
             <dd id="homeReadout">0.0 m</dd>
+          </div>
+          <div class="telemetry-row">
+            <dt>Active Chunks</dt>
+            <dd id="chunksCount">49 Loaded</dd>
           </div>
           <div class="telemetry-row">
             <dt>Flight Target</dt>
@@ -90,7 +99,7 @@
 
       <!-- Center-Bottom Objective Toast -->
       <div class="hud objective-toast" id="objective" role="status">
-        <i>✦</i> <span id="objectiveText">Bee waking up in the hive meadow…</span>
+        <i>✦</i> <span id="objectiveText">World generating step-by-step around the hive…</span>
       </div>
 
       <!-- Bottom Interactive Control Toolbar -->
