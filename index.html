@@ -3,75 +3,131 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#101817" />
-    <title>BeeCX — Voxel Foraging Lab</title>
+    <title>BeeCX — 3D Voxel World & Central Complex Navigation</title>
+    <meta name="description" content="High-fidelity 3D voxel world simulation of a honeybee foraging with biological Central Complex path integration." />
     <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+        }
+      }
+    </script>
   </head>
   <body>
-    <main class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">BEE-CX / EXPERIMENT 01</p>
-          <h1>Voxel Foraging Lab</h1>
+    <main id="gameShell">
+      <!-- 3D WebGL Canvas -->
+      <canvas id="world" aria-label="A live 3D voxel world simulating a bee in a riverside meadow"></canvas>
+
+      <!-- Compound Eye Hexagonal POV Filter -->
+      <div id="povOverlay" aria-hidden="true"></div>
+
+      <!-- Top-Left Branding & Environment Telemetry -->
+      <header class="hud top-left-hud">
+        <div class="brand-badge">
+          <span class="logo-pill">BEE-CX v2</span>
+          <div class="environment-tag">
+            <span><i class="indicator-active"></i> 3D VOXEL BIOME</span>
+            <span id="biomeCoords">X: 0 | Z: 0</span>
+          </div>
         </div>
-        <div class="model-chip" title="A port-ready, biologically inspired path-integration controller">
-          <span class="pulse"></span> BEE-CX MODEL SOURCE DOWNLOADED
-        </div>
+        <h1>Riverside Meadow</h1>
       </header>
 
-      <section class="simulation-layout" aria-label="Bee simulation">
-        <div class="world-frame">
-          <canvas id="world" aria-label="Voxel meadow with a bee, hive, flowers, and hazards"></canvas>
-          <div class="world-key" aria-hidden="true">
-            <span><i class="key-swatch hive"></i>Hive</span>
-            <span><i class="key-swatch flower"></i>Flower</span>
-            <span><i class="key-swatch threat"></i>Hazard</span>
+      <!-- Top-Right Camera Modes & Lighting Selector -->
+      <div class="hud top-right-hud">
+        <div class="cam-btn-group" role="group" aria-label="Camera Perspectives">
+          <button id="camChase" class="cam-btn active" title="Third-person chase camera">
+            <span>🎥 Chase</span>
+          </button>
+          <button id="camPov" class="cam-btn" title="Bee compound eye first-person view">
+            <span>🐝 Bee POV</span>
+          </button>
+          <button id="camOrbit" class="cam-btn" title="Free orbit god camera">
+            <span>🌐 Orbit</span>
+          </button>
+        </div>
+        <button id="timeBtn" class="btn-glass" title="Toggle Golden Hour / Daylight / Dusk">
+          <span id="timeIcon">☀️</span> <span id="timeLabel">Noon</span>
+        </button>
+      </div>
+
+      <!-- Bee Internal State & Telemetry -->
+      <aside class="hud brain-hud" aria-live="polite">
+        <div class="panel-header">
+          <span class="panel-title">Bee Telemetry</span>
+          <span id="modeBadge" class="status-badge exploring">EXPLORING</span>
+        </div>
+        <dl class="telemetry-list">
+          <div class="telemetry-row">
+            <dt>Home Vector</dt>
+            <dd id="homeReadout">0.0 m</dd>
           </div>
-          <div class="objective" id="objective">Looking for a flower</div>
+          <div class="telemetry-row">
+            <dt>Flight Target</dt>
+            <dd id="targetReadout">Scanning meadow</dd>
+          </div>
+          <div class="telemetry-row">
+            <dt>Altitude</dt>
+            <dd id="altReadout">2.4 m</dd>
+          </div>
+          <div class="telemetry-row">
+            <dt>Velocity</dt>
+            <dd id="speedStatReadout">5.1 m/s</dd>
+          </div>
+        </dl>
+        <div class="nectar-meter-wrap">
+          <div class="meter-label">
+            <span>Nectar Payload</span>
+            <span id="nectarText">0 / 3</span>
+          </div>
+          <div class="meter-track">
+            <div id="nectarBar" class="meter-fill"></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center-Bottom Objective Toast -->
+      <div class="hud objective-toast" id="objective" role="status">
+        <i>✦</i> <span id="objectiveText">Bee waking up in the hive meadow…</span>
+      </div>
+
+      <!-- Bottom Interactive Control Toolbar -->
+      <footer class="hud bottom-toolbar">
+        <div class="controls-left">
+          <button id="toggleButton" class="btn-glass">
+            <span id="playIcon">⏸</span> Pause
+          </button>
+          <button id="resetButton" class="btn-glass">
+            <span>↺</span> Reset Flight
+          </button>
+          <button id="plantBtn" class="btn-glass btn-highlight">
+            <span>🌸</span> Plant Flower
+          </button>
         </div>
 
-        <aside class="brain-panel" aria-live="polite">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">LIVE DECISION STATE</p>
-              <h2>Bee brain</h2>
-            </div>
-            <span class="status-dot" id="statusDot"></span>
+        <div class="controls-center">
+          <div class="speed-control">
+            <span>Speed</span>
+            <input id="speedRange" type="range" min="0.5" max="3" step="0.5" value="1" aria-label="Simulation speed multiplier" />
+            <output id="speedOutput">1.0×</output>
           </div>
-
-          <div class="neural-map" id="neuralMap" aria-label="Activity in bee brain modules"></div>
-
-          <dl class="brain-readout">
-            <div><dt>Mode</dt><dd id="modeReadout">EXPLORING</dd></div>
-            <div><dt>Heading</dt><dd id="headingReadout">0°</dd></div>
-            <div><dt>Home vector</dt><dd id="homeReadout">0.0 blocks</dd></div>
-            <div><dt>Nectar</dt><dd id="nectarReadout">0 / 3</dd></div>
-          </dl>
-
-          <div class="activity-section">
-            <div class="activity-label"><span>Signal activity</span><span id="signalValue">0%</span></div>
-            <div class="activity-track"><div id="signalBar"></div></div>
+          <div class="click-hint">
+            <kbd>Click Ground</kbd> to plant flower
           </div>
+        </div>
 
-          <p class="model-note">The downloaded research model informs this controller: sensory cues, a compass, and a remembered vector guide the bee back to its hive.</p>
-        </aside>
-      </section>
-
-      <section class="control-strip" aria-label="Simulation controls">
-        <button class="primary-button" id="toggleButton">Pause simulation</button>
-        <button class="secondary-button" id="resetButton">Reset world</button>
-        <label for="speedRange">Time scale <output id="speedOutput">1.0×</output></label>
-        <input id="speedRange" type="range" min="0.5" max="3" step="0.5" value="1" />
-        <div class="event-log" id="eventLog">Bee launched from hive.</div>
-      </section>
-
-      <section class="metrics" aria-label="Experiment metrics">
-        <article><span>Flowers visited</span><strong id="flowersVisited">0</strong></article>
-        <article><span>Nectar delivered</span><strong id="nectarDelivered">0</strong></article>
-        <article><span>Distance flown</span><strong id="distanceFlown">0</strong></article>
-        <article><span>Trips completed</span><strong id="tripsCompleted">0</strong></article>
-      </section>
+        <div class="controls-right">
+          <div class="stats-counter" id="statsReadout">
+            <span>Visited: <strong id="visitedCount">0</strong></span>
+            <span>Delivered: <strong id="deliveredCount">0</strong></span>
+          </div>
+        </div>
+      </footer>
     </main>
-    <script src="app.js"></script>
+
+    <!-- Main 3D Simulation Engine -->
+    <script type="module" src="app.js"></script>
   </body>
 </html>
