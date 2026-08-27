@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101817" />
+    <title>BeeCX — Voxel Foraging Lab</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">BEE-CX / EXPERIMENT 01</p>
+          <h1>Voxel Foraging Lab</h1>
+        </div>
+        <div class="model-chip" title="A port-ready, biologically inspired path-integration controller">
+          <span class="pulse"></span> BEE-CX MODEL SOURCE DOWNLOADED
+        </div>
+      </header>
+
+      <section class="simulation-layout" aria-label="Bee simulation">
+        <div class="world-frame">
+          <canvas id="world" aria-label="Voxel meadow with a bee, hive, flowers, and hazards"></canvas>
+          <div class="world-key" aria-hidden="true">
+            <span><i class="key-swatch hive"></i>Hive</span>
+            <span><i class="key-swatch flower"></i>Flower</span>
+            <span><i class="key-swatch threat"></i>Hazard</span>
+          </div>
+          <div class="objective" id="objective">Looking for a flower</div>
+        </div>
+
+        <aside class="brain-panel" aria-live="polite">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">LIVE DECISION STATE</p>
+              <h2>Bee brain</h2>
+            </div>
+            <span class="status-dot" id="statusDot"></span>
+          </div>
+
+          <div class="neural-map" id="neuralMap" aria-label="Activity in bee brain modules"></div>
+
+          <dl class="brain-readout">
+            <div><dt>Mode</dt><dd id="modeReadout">EXPLORING</dd></div>
+            <div><dt>Heading</dt><dd id="headingReadout">0°</dd></div>
+            <div><dt>Home vector</dt><dd id="homeReadout">0.0 blocks</dd></div>
+            <div><dt>Nectar</dt><dd id="nectarReadout">0 / 3</dd></div>
+          </dl>
+
+          <div class="activity-section">
+            <div class="activity-label"><span>Signal activity</span><span id="signalValue">0%</span></div>
+            <div class="activity-track"><div id="signalBar"></div></div>
+          </div>
+
+          <p class="model-note">The downloaded research model informs this controller: sensory cues, a compass, and a remembered vector guide the bee back to its hive.</p>
+        </aside>
+      </section>
+
+      <section class="control-strip" aria-label="Simulation controls">
+        <button class="primary-button" id="toggleButton">Pause simulation</button>
+        <button class="secondary-button" id="resetButton">Reset world</button>
+        <label for="speedRange">Time scale <output id="speedOutput">1.0×</output></label>
+        <input id="speedRange" type="range" min="0.5" max="3" step="0.5" value="1" />
+        <div class="event-log" id="eventLog">Bee launched from hive.</div>
+      </section>
+
+      <section class="metrics" aria-label="Experiment metrics">
+        <article><span>Flowers visited</span><strong id="flowersVisited">0</strong></article>
+        <article><span>Nectar delivered</span><strong id="nectarDelivered">0</strong></article>
+        <article><span>Distance flown</span><strong id="distanceFlown">0</strong></article>
+        <article><span>Trips completed</span><strong id="tripsCompleted">0</strong></article>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
